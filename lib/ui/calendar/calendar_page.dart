@@ -78,12 +78,12 @@ class _CalendarPageState extends State<CalendarPage> {
                             borderRadius: BorderRadius.circular(14),
                           ),
                           title: Text(
-                            entry.title.isEmpty ? '无标题日记' : entry.title,
+                            entry.summary.isEmpty ? '空白日记' : entry.summary,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           subtitle: Text(
-                            entry.summary.isEmpty ? '点击继续写作...' : entry.summary,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                            DateFormat('HH:mm').format(entry.eventAt),
                           ),
                           trailing: Text(entry.mood),
                           onTap: () => widget.onOpen(entry),

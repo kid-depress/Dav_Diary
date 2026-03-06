@@ -11,6 +11,7 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -27,12 +28,11 @@ class _EditorPageState extends State<EditorPage> {
   static const _moodOptions = ['😀', '🙂', '😌', '😢', '😡', '🥰'];
   static const _weatherOptions = ['☀️', '⛅', '🌧️', '⛈️', '❄️', '🌫️'];
 
-  final _titleController = TextEditingController();
   final _moodDescController = TextEditingController();
   final _weatherDescController = TextEditingController();
   final _locationController = TextEditingController();
-  final _scrollController = ScrollController();
-  final _focusNode = FocusNode();
+  final _editorScrollController = ScrollController();
+  final _editorFocusNode = FocusNode();
 
   late QuillController _quillController;
 
@@ -54,7 +54,6 @@ class _EditorPageState extends State<EditorPage> {
       return;
     }
 
-    _titleController.text = initial.title;
     _eventAt = initial.eventAt;
     _locationController.text = initial.location;
     _attachments = List<DiaryAttachment>.from(initial.attachments);
@@ -81,12 +80,11 @@ class _EditorPageState extends State<EditorPage> {
 
   @override
   void dispose() {
-    _titleController.dispose();
     _moodDescController.dispose();
     _weatherDescController.dispose();
     _locationController.dispose();
-    _scrollController.dispose();
-    _focusNode.dispose();
+    _editorScrollController.dispose();
+    _editorFocusNode.dispose();
     _quillController.dispose();
     super.dispose();
   }
@@ -109,7 +107,7 @@ class _EditorPageState extends State<EditorPage> {
     return text.isEmpty ? icon : '$icon $text';
   }
 
-  Future<void> _pickEventAt() async {
+  Future<void> _pickEventAt({StateSetter? modalSetState}) async {
     final date = await showDatePicker(
       context: context,
       initialDate: _eventAt,
@@ -135,9 +133,10 @@ class _EditorPageState extends State<EditorPage> {
         time.minute,
       );
     });
+    modalSetState?.call(() {});
   }
 
-  Future<void> _pickImage(ImageSource source) async {
+  Future<void> _pickImage(ImageSource source, {StateSetter? modalSetState}) async {
     try {
       final picker = ImagePicker();
       final file = await picker.pickImage(
@@ -150,11 +149,9 @@ class _EditorPageState extends State<EditorPage> {
       }
       final savedPath = await const StorageService().saveImage(file.path);
       setState(() {
-        _attachments = [
-          ..._attachments,
-          DiaryAttachment(path: savedPath),
-        ];
+        _attachments = [..._attachments, DiaryAttachment(path: savedPath)];
       });
+      modalSetState?.call(() {});
     } catch (e) {
       if (!mounted) {
         return;
@@ -165,7 +162,7 @@ class _EditorPageState extends State<EditorPage> {
     }
   }
 
-  Future<void> _addDoodle() async {
+  Future<void> _addDoodle({StateSetter? modalSetState}) async {
     final path = await Navigator.of(
       context,
     ).push<String>(MaterialPageRoute(builder: (context) => const DoodlePage()));
@@ -175,9 +172,10 @@ class _EditorPageState extends State<EditorPage> {
     setState(() {
       _attachments = [..._attachments, DiaryAttachment(path: path, isDoodle: true)];
     });
+    modalSetState?.call(() {});
   }
 
-  Future<void> _editCaption(int index) async {
+  Future<void> _editCaption(int index, {StateSetter? modalSetState}) async {
     final current = _attachments[index];
     final controller = TextEditingController(text: current.caption);
     final result = await showDialog<String>(
@@ -216,10 +214,12 @@ class _EditorPageState extends State<EditorPage> {
       );
       _attachments = list;
     });
+    modalSetState?.call(() {});
   }
 
-  Future<void> _locate() async {
+  Future<void> _locate({StateSetter? modalSetState}) async {
     setState(() => _locating = true);
+    modalSetState?.call(() {});
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
@@ -271,8 +271,32 @@ class _EditorPageState extends State<EditorPage> {
     } finally {
       if (mounted) {
         setState(() => _locating = false);
+        modalSetState?.call(() {});
       }
     }
+  }
+
+  bool _isAttributeEnabled(Attribute attribute) {
+    final attr = _quillController.getSelectionStyle().attributes[attribute.key];
+    return attr?.value == attribute.value;
+  }
+
+  void _toggleAttribute(Attribute attribute) {
+    final enabled = _isAttributeEnabled(attribute);
+    _quillController.formatSelection(
+      enabled ? Attribute.clone(attribute, null) : attribute,
+    );
+    setState(() {});
+  }
+
+  void _setHeader(Attribute<int?> header) {
+    _quillController.formatSelection(header);
+    setState(() {});
+  }
+
+  void _setAlign(Attribute<String?> alignment) {
+    _quillController.formatSelection(alignment);
+    setState(() {});
   }
 
   Future<void> _save() async {
@@ -294,7 +318,7 @@ class _EditorPageState extends State<EditorPage> {
     final existing = widget.initialEntry;
     final entry = DiaryEntry(
       id: existing?.id ?? const Uuid().v4(),
-      title: _titleController.text.trim(),
+      title: '',
       deltaJson: jsonEncode(_quillController.document.toDelta().toJson()),
       plainText: plainText,
       createdAt: existing?.createdAt ?? now,
@@ -356,106 +380,353 @@ class _EditorPageState extends State<EditorPage> {
     Navigator.of(context).pop(true);
   }
 
-  Widget _buildMetaPicker({
-    required String title,
-    required List<String> options,
-    required String selected,
-    required ValueChanged<String> onSelected,
-    required TextEditingController descController,
-    required String hint,
+  Widget _formatButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+    bool active = false,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: Theme.of(context).textTheme.titleSmall),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final item in options)
-              ChoiceChip(
-                label: Text(item),
-                selected: selected == item,
-                onSelected: (_) => onSelected(item),
-              ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: descController,
-          maxLength: 40,
-          decoration: InputDecoration(
-            hintText: hint,
-            border: const OutlineInputBorder(),
-            isDense: true,
-          ),
-        ),
-      ],
+    final color = active ? Theme.of(context).colorScheme.primary : null;
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onTap,
+      icon: Icon(icon, color: color),
     );
   }
 
-  Widget _buildAttachmentItem(int index) {
+  Widget _buildAttachmentItem(int index, {StateSetter? modalSetState}) {
     final attachment = _attachments[index];
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.file(
-                File(attachment.path),
-                width: 72,
-                height: 72,
-                fit: BoxFit.cover,
-                cacheWidth: 240,
-                errorBuilder: (context, _, _) => Container(
-                  width: 72,
-                  height: 72,
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  child: const Icon(Icons.broken_image_outlined),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    attachment.isDoodle ? '涂鸦' : '图片',
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    attachment.caption.isEmpty ? '暂无说明' : attachment.caption,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            IconButton(
-              tooltip: '编辑说明',
-              onPressed: () => _editCaption(index),
-              icon: const Icon(Icons.edit_note_outlined),
-            ),
-            IconButton(
-              tooltip: '移除',
-              onPressed: () {
-                HapticFeedback.selectionClick();
-                setState(() {
-                  final list = List<DiaryAttachment>.from(_attachments);
-                  list.removeAt(index);
-                  _attachments = list;
-                });
-              },
-              icon: const Icon(Icons.delete_outline),
-            ),
-          ],
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.file(
+          File(attachment.path),
+          width: 52,
+          height: 52,
+          fit: BoxFit.cover,
+          cacheWidth: 180,
+          errorBuilder: (context, _, _) => Container(
+            width: 52,
+            height: 52,
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: const Icon(Icons.broken_image_outlined),
+          ),
         ),
       ),
+      title: Text(attachment.isDoodle ? '涂鸦' : '图片'),
+      subtitle: Text(
+        attachment.caption.isEmpty ? '暂无说明' : attachment.caption,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: Wrap(
+        spacing: 2,
+        children: [
+          IconButton(
+            onPressed: () => _editCaption(index, modalSetState: modalSetState),
+            icon: const Icon(Icons.edit_note_outlined),
+          ),
+          IconButton(
+            onPressed: () {
+              setState(() {
+                final list = List<DiaryAttachment>.from(_attachments);
+                list.removeAt(index);
+                _attachments = list;
+              });
+              modalSetState?.call(() {});
+            },
+            icon: const Icon(Icons.delete_outline),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openMoodSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, modalSetState) {
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  8,
+                  16,
+                  MediaQuery.of(context).viewInsets.bottom + 16,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('心情', style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final mood in _moodOptions)
+                          ChoiceChip(
+                            label: Text(mood),
+                            selected: _selectedMood == mood,
+                            onSelected: (_) {
+                              setState(() => _selectedMood = mood);
+                              modalSetState(() {});
+                            },
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _moodDescController,
+                      maxLength: 40,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        hintText: '补充心情描述',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _openWeatherSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, modalSetState) {
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  8,
+                  16,
+                  MediaQuery.of(context).viewInsets.bottom + 16,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('天气', style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final weather in _weatherOptions)
+                          ChoiceChip(
+                            label: Text(weather),
+                            selected: _selectedWeather == weather,
+                            onSelected: (_) {
+                              setState(() => _selectedWeather = weather);
+                              modalSetState(() {});
+                            },
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _weatherDescController,
+                      maxLength: 40,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        hintText: '补充天气描述',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _openLocationSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, modalSetState) {
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  8,
+                  16,
+                  MediaQuery.of(context).viewInsets.bottom + 16,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('位置', style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _locationController,
+                      decoration: InputDecoration(
+                        labelText: '位置',
+                        hintText: '自动定位或手动编辑',
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          onPressed: _locating
+                              ? null
+                              : () => _locate(modalSetState: modalSetState),
+                          icon: _locating
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.my_location_outlined),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _openAttachmentSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, modalSetState) {
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  8,
+                  16,
+                  MediaQuery.of(context).viewInsets.bottom + 16,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('附件', style: Theme.of(context).textTheme.titleLarge),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          FilledButton.tonalIcon(
+                            onPressed: () =>
+                                _pickImage(ImageSource.gallery, modalSetState: modalSetState),
+                            icon: const Icon(Icons.photo_library_outlined),
+                            label: const Text('相册'),
+                          ),
+                          FilledButton.tonalIcon(
+                            onPressed: () =>
+                                _pickImage(ImageSource.camera, modalSetState: modalSetState),
+                            icon: const Icon(Icons.photo_camera_outlined),
+                            label: const Text('拍照'),
+                          ),
+                          FilledButton.tonalIcon(
+                            onPressed: () => _addDoodle(modalSetState: modalSetState),
+                            icon: const Icon(Icons.draw_outlined),
+                            label: const Text('涂鸦'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (_attachments.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                          child: Text('暂无附件'),
+                        )
+                      else
+                        for (var i = 0; i < _attachments.length; i++)
+                          _buildAttachmentItem(i, modalSetState: modalSetState),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _openMetadataMenu() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.emoji_emotions_outlined),
+                title: const Text('心情'),
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  await _openMoodSheet();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.wb_sunny_outlined),
+                title: const Text('天气'),
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  await _openWeatherSheet();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.schedule_outlined),
+                title: const Text('时间'),
+                subtitle: Text(DateFormat('yyyy-MM-dd HH:mm').format(_eventAt)),
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  await _pickEventAt();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.my_location_outlined),
+                title: const Text('位置'),
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  await _openLocationSheet();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.attach_file),
+                title: const Text('附件'),
+                subtitle: Text('共 ${_attachments.length} 个'),
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  await _openAttachmentSheet();
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -486,141 +757,137 @@ class _EditorPageState extends State<EditorPage> {
         ],
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            QuillSimpleToolbar(
-              controller: _quillController,
-              config: const QuillSimpleToolbarConfig(
-                showAlignmentButtons: true,
-                showHeaderStyle: true,
-                showListBullets: true,
-                showListNumbers: true,
-                showQuote: true,
-                showSmallButton: true,
-                showInlineCode: false,
-                showCodeBlock: false,
-                showClipboardCut: false,
-                showClipboardCopy: false,
-                showClipboardPaste: false,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: QuillEditor.basic(
+            controller: _quillController,
+            focusNode: _editorFocusNode,
+            scrollController: _editorScrollController,
+            config: const QuillEditorConfig(
+              placeholder: '开始写作...',
+              padding: EdgeInsets.all(8),
+            ),
+          ),
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Material(
+          color: Theme.of(context).colorScheme.surface,
+          elevation: 10,
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
               ),
             ),
-            Expanded(
-              child: SingleChildScrollView(
-                controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      controller: _titleController,
-                      maxLength: 80,
-                      decoration: const InputDecoration(
-                        labelText: '标题',
-                        hintText: '无标题',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Container(
-                      constraints: const BoxConstraints(minHeight: 240),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Theme.of(context).colorScheme.outlineVariant,
-                        ),
-                      ),
-                      child: QuillEditor.basic(
-                        controller: _quillController,
-                        focusNode: _focusNode,
-                        scrollController: ScrollController(),
-                        config: const QuillEditorConfig(
-                          placeholder: '开始写作...',
-                          padding: EdgeInsets.all(12),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        FilledButton.tonalIcon(
-                          onPressed: () => _pickImage(ImageSource.gallery),
-                          icon: const Icon(Icons.photo_library_outlined),
-                          label: const Text('相册'),
-                        ),
-                        const SizedBox(width: 8),
-                        FilledButton.tonalIcon(
-                          onPressed: () => _pickImage(ImageSource.camera),
-                          icon: const Icon(Icons.photo_camera_outlined),
-                          label: const Text('拍照'),
-                        ),
-                        const SizedBox(width: 8),
-                        FilledButton.tonalIcon(
-                          onPressed: _addDoodle,
-                          icon: const Icon(Icons.draw_outlined),
-                          label: const Text('涂鸦'),
-                        ),
-                      ],
-                    ),
-                    if (_attachments.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Text(
-                        '附件（${_attachments.length}）',
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
-                      const SizedBox(height: 6),
-                      for (var i = 0; i < _attachments.length; i++)
-                        _buildAttachmentItem(i),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Row(
+                children: [
+                  _formatButton(
+                    icon: Icons.dataset_outlined,
+                    tooltip: '元数据',
+                    onTap: _openMetadataMenu,
+                  ),
+                  _formatButton(
+                    icon: Icons.format_bold,
+                    tooltip: '加粗',
+                    onTap: () => _toggleAttribute(Attribute.bold),
+                    active: _isAttributeEnabled(Attribute.bold),
+                  ),
+                  _formatButton(
+                    icon: Icons.format_italic,
+                    tooltip: '斜体',
+                    onTap: () => _toggleAttribute(Attribute.italic),
+                    active: _isAttributeEnabled(Attribute.italic),
+                  ),
+                  _formatButton(
+                    icon: Icons.format_underline,
+                    tooltip: '下划线',
+                    onTap: () => _toggleAttribute(Attribute.underline),
+                    active: _isAttributeEnabled(Attribute.underline),
+                  ),
+                  _formatButton(
+                    icon: Icons.strikethrough_s,
+                    tooltip: '删除线',
+                    onTap: () => _toggleAttribute(Attribute.strikeThrough),
+                    active: _isAttributeEnabled(Attribute.strikeThrough),
+                  ),
+                  _formatButton(
+                    icon: Icons.text_fields,
+                    tooltip: '小字号',
+                    onTap: () => _toggleAttribute(Attribute.small),
+                    active: _isAttributeEnabled(Attribute.small),
+                  ),
+                  _formatButton(
+                    icon: Icons.format_list_bulleted,
+                    tooltip: '无序列表',
+                    onTap: () => _toggleAttribute(Attribute.ul),
+                    active: _isAttributeEnabled(Attribute.ul),
+                  ),
+                  _formatButton(
+                    icon: Icons.format_list_numbered,
+                    tooltip: '有序列表',
+                    onTap: () => _toggleAttribute(Attribute.ol),
+                    active: _isAttributeEnabled(Attribute.ol),
+                  ),
+                  _formatButton(
+                    icon: Icons.format_quote,
+                    tooltip: '引用',
+                    onTap: () => _toggleAttribute(Attribute.blockQuote),
+                    active: _isAttributeEnabled(Attribute.blockQuote),
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: '更多格式',
+                    onSelected: (value) {
+                      switch (value) {
+                        case 'h1':
+                          _setHeader(Attribute.h1);
+                          break;
+                        case 'h2':
+                          _setHeader(Attribute.h2);
+                          break;
+                        case 'h3':
+                          _setHeader(Attribute.h3);
+                          break;
+                        case 'p':
+                          _quillController.formatSelection(
+                            Attribute.clone(Attribute.h1, null),
+                          );
+                          setState(() {});
+                          break;
+                        case 'left':
+                          _setAlign(Attribute.leftAlignment);
+                          break;
+                        case 'center':
+                          _setAlign(Attribute.centerAlignment);
+                          break;
+                        case 'right':
+                          _setAlign(Attribute.rightAlignment);
+                          break;
+                      }
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(value: 'h1', child: Text('标题 1')),
+                      PopupMenuItem(value: 'h2', child: Text('标题 2')),
+                      PopupMenuItem(value: 'h3', child: Text('标题 3')),
+                      PopupMenuItem(value: 'p', child: Text('正文')),
+                      PopupMenuDivider(),
+                      PopupMenuItem(value: 'left', child: Text('左对齐')),
+                      PopupMenuItem(value: 'center', child: Text('居中')),
+                      PopupMenuItem(value: 'right', child: Text('右对齐')),
                     ],
-                    const SizedBox(height: 14),
-                    _buildMetaPicker(
-                      title: '心情',
-                      options: _moodOptions,
-                      selected: _selectedMood,
-                      onSelected: (value) => setState(() => _selectedMood = value),
-                      descController: _moodDescController,
-                      hint: '补充心情描述',
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      child: Icon(Icons.tune),
                     ),
-                    const SizedBox(height: 10),
-                    _buildMetaPicker(
-                      title: '天气',
-                      options: _weatherOptions,
-                      selected: _selectedWeather,
-                      onSelected: (value) => setState(() => _selectedWeather = value),
-                      descController: _weatherDescController,
-                      hint: '补充天气描述',
-                    ),
-                    const SizedBox(height: 10),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('记录时间'),
-                      subtitle: Text(_eventAt.toString()),
-                      trailing: const Icon(Icons.schedule_outlined),
-                      onTap: _pickEventAt,
-                    ),
-                    const SizedBox(height: 4),
-                    TextField(
-                      controller: _locationController,
-                      decoration: InputDecoration(
-                        labelText: '位置',
-                        hintText: '自动定位或手动编辑',
-                        border: const OutlineInputBorder(),
-                        suffixIcon: IconButton(
-                          onPressed: _locating ? null : _locate,
-                          icon: _locating
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.my_location_outlined),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );

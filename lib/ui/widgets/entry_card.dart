@@ -56,15 +56,8 @@ class EntryCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    entry.title.isEmpty ? '无标题日记' : entry.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
                     entry.summary.isEmpty ? '点击继续写作...' : entry.summary,
-                    maxLines: 3,
+                    maxLines: 4,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
