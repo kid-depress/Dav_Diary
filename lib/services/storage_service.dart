@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:diary/data/models/diary_entry.dart';
@@ -34,6 +34,69 @@ class StorageService {
 
   Future<String> saveAttachment(String sourcePath) {
     return _copyToMedia(sourcePath);
+  }
+
+  Future<String?> resolveAttachmentPath(String rawPath) async {
+    final trimmed = rawPath.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+
+    final tried = <String>{};
+
+    Future<String?> probe(String candidate) async {
+      final normalized = p.normalize(candidate);
+      if (!tried.add(normalized)) {
+        return null;
+      }
+      final file = File(normalized);
+      if (await file.exists()) {
+        return file.path;
+      }
+      return null;
+    }
+
+    final direct = await probe(trimmed);
+    if (direct != null) {
+      return direct;
+    }
+
+    if (trimmed.startsWith('file://')) {
+      try {
+        final uriPath = Uri.parse(
+          trimmed,
+        ).toFilePath(windows: Platform.isWindows);
+        final fromUri = await probe(uriPath);
+        if (fromUri != null) {
+          return fromUri;
+        }
+      } catch (_) {
+        // Ignore malformed URI and continue fallback probing.
+      }
+    }
+
+    if (trimmed.contains('%')) {
+      try {
+        final decoded = Uri.decodeFull(trimmed);
+        final fromDecoded = await probe(decoded);
+        if (fromDecoded != null) {
+          return fromDecoded;
+        }
+      } catch (_) {
+        // Ignore decode errors and continue fallback probing.
+      }
+    }
+
+    final media = await _mediaDir();
+    final baseName = p.basename(trimmed);
+    if (baseName.isNotEmpty) {
+      final fromMedia = await probe(p.join(media.path, baseName));
+      if (fromMedia != null) {
+        return fromMedia;
+      }
+    }
+
+    return null;
   }
 
   Future<String> saveAttachmentBytes(
