@@ -36,6 +36,20 @@ class StorageService {
     return _copyToMedia(sourcePath);
   }
 
+  Future<String> saveAttachmentBytes(
+    Uint8List bytes, {
+    String? sourceName,
+    String defaultExt = '.bin',
+  }) async {
+    final media = await _mediaDir();
+    final ext = p.extension(sourceName ?? '').toLowerCase();
+    final normalizedExt = ext.isEmpty ? defaultExt : ext;
+    final fileName = '${const Uuid().v4()}$normalizedExt';
+    final target = File(p.join(media.path, fileName));
+    await target.writeAsBytes(bytes, flush: true);
+    return target.path;
+  }
+
   Future<String> saveDoodle(Uint8List bytes) async {
     final media = await _mediaDir();
     final fileName = '${const Uuid().v4()}.png';

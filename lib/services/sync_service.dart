@@ -6,6 +6,8 @@ import 'package:diary/data/models/diary_entry.dart';
 import 'package:diary/data/models/webdav_config.dart';
 import 'package:diary/data/repositories/diary_repository.dart';
 import 'package:diary/data/repositories/settings_repository.dart';
+import 'package:diary/services/storage_service.dart';
+import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 import 'package:webdav_client/webdav_client.dart' as webdav;
 
@@ -30,6 +32,7 @@ class SyncService {
 
   final DiaryRepository _diaryRepository;
   final SettingsRepository _settingsRepository;
+  final StorageService _storageService = const StorageService();
 
   webdav.Client _buildClient(WebDavConfig config) {
     final client = webdav.newClient(
@@ -58,9 +61,61 @@ class SyncService {
     String remotePath,
     DiaryEntry entry,
   ) async {
-    final jsonStr = jsonEncode(entry.toSyncJson());
+    final payload = Map<String, dynamic>.from(entry.toSyncJson());
+    payload['attachments'] = await _buildSyncAttachments(entry.attachments);
+    final jsonStr = jsonEncode(payload);
     final compressed = gzip.encode(utf8.encode(jsonStr));
     await client.write(remotePath, Uint8List.fromList(compressed));
+  }
+
+  Future<List<Map<String, dynamic>>> _buildSyncAttachments(
+    List<DiaryAttachment> attachments,
+  ) async {
+    final result = <Map<String, dynamic>>[];
+    for (final attachment in attachments) {
+      final item = Map<String, dynamic>.from(attachment.toJson());
+      final file = File(attachment.path);
+      if (await file.exists()) {
+        try {
+          final bytes = await file.readAsBytes();
+          item['filename'] = p.basename(attachment.path);
+          item['bytesBase64'] = base64Encode(bytes);
+        } catch (_) {
+          // Keep metadata-only attachment if local file can't be read.
+        }
+      }
+      result.add(item);
+    }
+    return result;
+  }
+
+  Future<Map<String, dynamic>> _materializeRemoteEntry(
+    Map<String, dynamic> raw,
+  ) async {
+    final result = Map<String, dynamic>.from(raw);
+    final attachmentsRaw = (result['attachments'] ?? <dynamic>[]) as List<dynamic>;
+    final hydrated = <Map<String, dynamic>>[];
+    for (final item in attachmentsRaw.whereType<Map<String, dynamic>>()) {
+      final attachment = Map<String, dynamic>.from(item);
+      final encoded = (attachment.remove('bytesBase64') ?? '') as String;
+      final filename = (attachment['filename'] ?? '') as String;
+      if (encoded.isNotEmpty) {
+        try {
+          final bytes = base64Decode(encoded);
+          final localPath = await _storageService.saveAttachmentBytes(
+            bytes,
+            sourceName: filename,
+            defaultExt: '.jpg',
+          );
+          attachment['path'] = localPath;
+        } catch (_) {
+          // Fall back to remote payload path if decode/write fails.
+        }
+      }
+      hydrated.add(attachment);
+    }
+    result['attachments'] = hydrated;
+    return result;
   }
 
   Future<bool> testConnection() async {
@@ -116,7 +171,8 @@ class SyncService {
         final bytes = await client.read(path);
         final decoded = utf8.decode(gzip.decode(bytes));
         final map = jsonDecode(decoded) as Map<String, dynamic>;
-        final remoteEntry = DiaryEntry.fromSyncJson(map);
+        final hydratedMap = await _materializeRemoteEntry(map);
+        final remoteEntry = DiaryEntry.fromSyncJson(hydratedMap);
         final local = await _diaryRepository.getById(remoteEntry.id);
         if (local == null) {
           await _diaryRepository.upsert(remoteEntry);

@@ -730,6 +730,8 @@ class _EditorPageState extends State<EditorPage> {
   Widget build(BuildContext context) {
     final isSaving = _saving;
     final hasEntry = _isEditing;
+    final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+    final keyboardVisible = keyboardInset > 0;
 
     return Scaffold(
       appBar: AppBar(
@@ -766,121 +768,127 @@ class _EditorPageState extends State<EditorPage> {
           ),
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Material(
-          color: Theme.of(context).colorScheme.surface,
-          elevation: 10,
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+      bottomNavigationBar: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.only(bottom: keyboardVisible ? keyboardInset : 0),
+        child: SafeArea(
+          top: false,
+          bottom: !keyboardVisible,
+          child: Material(
+            color: Theme.of(context).colorScheme.surface,
+            elevation: 10,
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+                ),
               ),
-            ),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Row(
-                children: [
-                  _formatButton(
-                    icon: Icons.dataset_outlined,
-                    tooltip: '元数据',
-                    onTap: _openMetadataMenu,
-                  ),
-                  _formatButton(
-                    icon: Icons.format_bold,
-                    tooltip: '加粗',
-                    onTap: () => _toggleAttribute(Attribute.bold),
-                    active: _isAttributeEnabled(Attribute.bold),
-                  ),
-                  _formatButton(
-                    icon: Icons.format_italic,
-                    tooltip: '斜体',
-                    onTap: () => _toggleAttribute(Attribute.italic),
-                    active: _isAttributeEnabled(Attribute.italic),
-                  ),
-                  _formatButton(
-                    icon: Icons.format_underline,
-                    tooltip: '下划线',
-                    onTap: () => _toggleAttribute(Attribute.underline),
-                    active: _isAttributeEnabled(Attribute.underline),
-                  ),
-                  _formatButton(
-                    icon: Icons.strikethrough_s,
-                    tooltip: '删除线',
-                    onTap: () => _toggleAttribute(Attribute.strikeThrough),
-                    active: _isAttributeEnabled(Attribute.strikeThrough),
-                  ),
-                  _formatButton(
-                    icon: Icons.text_fields,
-                    tooltip: '小字号',
-                    onTap: () => _toggleAttribute(Attribute.small),
-                    active: _isAttributeEnabled(Attribute.small),
-                  ),
-                  _formatButton(
-                    icon: Icons.format_list_bulleted,
-                    tooltip: '无序列表',
-                    onTap: () => _toggleAttribute(Attribute.ul),
-                    active: _isAttributeEnabled(Attribute.ul),
-                  ),
-                  _formatButton(
-                    icon: Icons.format_list_numbered,
-                    tooltip: '有序列表',
-                    onTap: () => _toggleAttribute(Attribute.ol),
-                    active: _isAttributeEnabled(Attribute.ol),
-                  ),
-                  _formatButton(
-                    icon: Icons.format_quote,
-                    tooltip: '引用',
-                    onTap: () => _toggleAttribute(Attribute.blockQuote),
-                    active: _isAttributeEnabled(Attribute.blockQuote),
-                  ),
-                  PopupMenuButton<String>(
-                    tooltip: '更多格式',
-                    onSelected: (value) {
-                      switch (value) {
-                        case 'h1':
-                          _setHeader(Attribute.h1);
-                          break;
-                        case 'h2':
-                          _setHeader(Attribute.h2);
-                          break;
-                        case 'h3':
-                          _setHeader(Attribute.h3);
-                          break;
-                        case 'p':
-                          _quillController.formatSelection(
-                            Attribute.clone(Attribute.h1, null),
-                          );
-                          setState(() {});
-                          break;
-                        case 'left':
-                          _setAlign(Attribute.leftAlignment);
-                          break;
-                        case 'center':
-                          _setAlign(Attribute.centerAlignment);
-                          break;
-                        case 'right':
-                          _setAlign(Attribute.rightAlignment);
-                          break;
-                      }
-                    },
-                    itemBuilder: (context) => const [
-                      PopupMenuItem(value: 'h1', child: Text('标题 1')),
-                      PopupMenuItem(value: 'h2', child: Text('标题 2')),
-                      PopupMenuItem(value: 'h3', child: Text('标题 3')),
-                      PopupMenuItem(value: 'p', child: Text('正文')),
-                      PopupMenuDivider(),
-                      PopupMenuItem(value: 'left', child: Text('左对齐')),
-                      PopupMenuItem(value: 'center', child: Text('居中')),
-                      PopupMenuItem(value: 'right', child: Text('右对齐')),
-                    ],
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 12),
-                      child: Icon(Icons.tune),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Row(
+                  children: [
+                    _formatButton(
+                      icon: Icons.dataset_outlined,
+                      tooltip: '元数据',
+                      onTap: _openMetadataMenu,
                     ),
-                  ),
-                ],
+                    _formatButton(
+                      icon: Icons.format_bold,
+                      tooltip: '加粗',
+                      onTap: () => _toggleAttribute(Attribute.bold),
+                      active: _isAttributeEnabled(Attribute.bold),
+                    ),
+                    _formatButton(
+                      icon: Icons.format_italic,
+                      tooltip: '斜体',
+                      onTap: () => _toggleAttribute(Attribute.italic),
+                      active: _isAttributeEnabled(Attribute.italic),
+                    ),
+                    _formatButton(
+                      icon: Icons.format_underline,
+                      tooltip: '下划线',
+                      onTap: () => _toggleAttribute(Attribute.underline),
+                      active: _isAttributeEnabled(Attribute.underline),
+                    ),
+                    _formatButton(
+                      icon: Icons.strikethrough_s,
+                      tooltip: '删除线',
+                      onTap: () => _toggleAttribute(Attribute.strikeThrough),
+                      active: _isAttributeEnabled(Attribute.strikeThrough),
+                    ),
+                    _formatButton(
+                      icon: Icons.text_fields,
+                      tooltip: '小字号',
+                      onTap: () => _toggleAttribute(Attribute.small),
+                      active: _isAttributeEnabled(Attribute.small),
+                    ),
+                    _formatButton(
+                      icon: Icons.format_list_bulleted,
+                      tooltip: '无序列表',
+                      onTap: () => _toggleAttribute(Attribute.ul),
+                      active: _isAttributeEnabled(Attribute.ul),
+                    ),
+                    _formatButton(
+                      icon: Icons.format_list_numbered,
+                      tooltip: '有序列表',
+                      onTap: () => _toggleAttribute(Attribute.ol),
+                      active: _isAttributeEnabled(Attribute.ol),
+                    ),
+                    _formatButton(
+                      icon: Icons.format_quote,
+                      tooltip: '引用',
+                      onTap: () => _toggleAttribute(Attribute.blockQuote),
+                      active: _isAttributeEnabled(Attribute.blockQuote),
+                    ),
+                    PopupMenuButton<String>(
+                      tooltip: '更多格式',
+                      onSelected: (value) {
+                        switch (value) {
+                          case 'h1':
+                            _setHeader(Attribute.h1);
+                            break;
+                          case 'h2':
+                            _setHeader(Attribute.h2);
+                            break;
+                          case 'h3':
+                            _setHeader(Attribute.h3);
+                            break;
+                          case 'p':
+                            _quillController.formatSelection(
+                              Attribute.clone(Attribute.h1, null),
+                            );
+                            setState(() {});
+                            break;
+                          case 'left':
+                            _setAlign(Attribute.leftAlignment);
+                            break;
+                          case 'center':
+                            _setAlign(Attribute.centerAlignment);
+                            break;
+                          case 'right':
+                            _setAlign(Attribute.rightAlignment);
+                            break;
+                        }
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(value: 'h1', child: Text('标题 1')),
+                        PopupMenuItem(value: 'h2', child: Text('标题 2')),
+                        PopupMenuItem(value: 'h3', child: Text('标题 3')),
+                        PopupMenuItem(value: 'p', child: Text('正文')),
+                        PopupMenuDivider(),
+                        PopupMenuItem(value: 'left', child: Text('左对齐')),
+                        PopupMenuItem(value: 'center', child: Text('居中')),
+                        PopupMenuItem(value: 'right', child: Text('右对齐')),
+                      ],
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12),
+                        child: Icon(Icons.tune),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
