@@ -57,19 +57,8 @@ class _DiaryAppBootstrapState extends State<DiaryAppBootstrap> {
                   Locale('en', 'US'),
                 ],
                 themeMode: appState.themeMode,
-                theme: ThemeData(
-                  useMaterial3: true,
-                  colorScheme: ColorScheme.fromSeed(
-                    seedColor: const Color(0xFF1A936F),
-                  ),
-                ),
-                darkTheme: ThemeData(
-                  useMaterial3: true,
-                  colorScheme: ColorScheme.fromSeed(
-                    seedColor: const Color(0xFF1A936F),
-                    brightness: Brightness.dark,
-                  ),
-                ),
+                theme: _buildTheme(brightness: Brightness.light),
+                darkTheme: _buildTheme(brightness: Brightness.dark),
                 localizationsDelegates: const [
                   GlobalMaterialLocalizations.delegate,
                   GlobalCupertinoLocalizations.delegate,
@@ -82,6 +71,57 @@ class _DiaryAppBootstrapState extends State<DiaryAppBootstrap> {
           ),
         );
       },
+    );
+  }
+
+  ThemeData _buildTheme({required Brightness brightness}) {
+    final scheme = ColorScheme.fromSeed(
+      seedColor: const Color(0xFF7A8DA1),
+      brightness: brightness,
+      dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
+    );
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: scheme.surface,
+      cardTheme: CardThemeData(
+        margin: EdgeInsets.zero,
+        elevation: 0,
+        color: scheme.surfaceContainerLow,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      ),
+      appBarTheme: AppBarTheme(
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        backgroundColor: scheme.surface,
+        foregroundColor: scheme.onSurface,
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        elevation: 0,
+        backgroundColor: scheme.surfaceContainerLow,
+        indicatorColor: scheme.secondaryContainer,
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 0,
+        backgroundColor: scheme.primaryContainer,
+        foregroundColor: scheme.onPrimaryContainer,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: scheme.surfaceContainerLow,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: scheme.primary, width: 1.2),
+        ),
+      ),
     );
   }
 }

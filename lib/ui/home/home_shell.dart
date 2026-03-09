@@ -19,6 +19,7 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   static const _tabletBreakpoint = 840.0;
   int _index = 0;
+  bool _fabExtended = true;
 
   Future<void> _openEditor([DiaryEntry? entry]) async {
     await Navigator.of(context).push<bool>(
@@ -42,13 +43,23 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    final appState = context.watch<DiaryAppState>();
     final titles = [
       tr(context, zh: '日记', en: 'Diary'),
       tr(context, zh: '回顾', en: 'Calendar'),
       tr(context, zh: '设置', en: 'Settings'),
     ];
     final pages = [
-      HomePage(onCreate: () => _openEditor(), onOpen: _openPreview),
+      HomePage(
+        onCreate: () => _openEditor(),
+        onOpen: _openPreview,
+        onScrollStateChanged: (extended) {
+          if (_fabExtended == extended) {
+            return;
+          }
+          setState(() => _fabExtended = extended);
+        },
+      ),
       CalendarPage(onOpen: _openPreview),
       const SettingsPage(),
     ];
@@ -98,19 +109,47 @@ class _HomeShellState extends State<HomeShell> {
                 )
               : IndexedStack(index: _index, children: pages),
           floatingActionButton: _index == 0
-              ? FloatingActionButton.extended(
-                  onPressed: () => _openEditor(),
-                  icon: const Icon(Icons.edit),
-                  label: Text(tr(context, zh: '写日记', en: 'Write')),
+              ? AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  child: _fabExtended
+                      ? FloatingActionButton.extended(
+                          key: const ValueKey('fab_extended'),
+                          onPressed: () => _openEditor(),
+                          icon: const Icon(Icons.edit_note_outlined),
+                          label: Text(
+                            tr(context, zh: '写日记', en: 'Write Diary'),
+                          ),
+                        )
+                      : FloatingActionButton(
+                          key: const ValueKey('fab_compact'),
+                          onPressed: () => _openEditor(),
+                          child: const Icon(Icons.edit_outlined),
+                        ),
                 )
               : null,
           bottomNavigationBar: isTablet
               ? null
-              : NavigationBar(
-                  selectedIndex: _index,
-                  onDestinationSelected: (value) =>
-                      setState(() => _index = value),
-                  destinations: destinations,
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      child: appState.syncing
+                          ? const SizedBox(
+                              height: 2,
+                              child: LinearProgressIndicator(),
+                            )
+                          : const SizedBox(height: 2),
+                    ),
+                    NavigationBar(
+                      selectedIndex: _index,
+                      onDestinationSelected: (value) =>
+                          setState(() => _index = value),
+                      destinations: destinations,
+                    ),
+                  ],
                 ),
         );
       },
