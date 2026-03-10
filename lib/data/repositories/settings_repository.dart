@@ -9,6 +9,7 @@ class SettingsRepository {
   static const _keyLocale = 'locale';
   static const _keyWebDavConfig = 'webdav_config';
   static const _keyLastSyncAt = 'last_sync_at';
+  static const _keyHomeLayoutMode = 'home_layout_mode';
 
   Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
 
@@ -78,5 +79,21 @@ class SettingsRepository {
   Future<void> saveLastSyncAt(DateTime time) async {
     final prefs = await _prefs;
     await prefs.setInt(_keyLastSyncAt, time.millisecondsSinceEpoch);
+  }
+
+  Future<String> loadHomeLayoutMode() async {
+    final prefs = await _prefs;
+    final value = (prefs.getString(_keyHomeLayoutMode) ?? '').trim();
+    if (value == 'timeline' || value == 'grid') {
+      return value;
+    }
+    // Default for first install: grid view.
+    return 'grid';
+  }
+
+  Future<void> saveHomeLayoutMode(String mode) async {
+    final normalized = mode == 'timeline' ? 'timeline' : 'grid';
+    final prefs = await _prefs;
+    await prefs.setString(_keyHomeLayoutMode, normalized);
   }
 }

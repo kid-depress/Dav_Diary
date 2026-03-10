@@ -9,19 +9,25 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-enum _HomeViewMode { timeline, grid }
+enum HomeViewMode { timeline, grid }
 
 class HomePage extends StatefulWidget {
   const HomePage({
     required this.onCreate,
     required this.onOpen,
     required this.onScrollStateChanged,
+    required this.query,
+    required this.viewMode,
+    required this.scrollToTopSignal,
     super.key,
   });
 
   final VoidCallback onCreate;
   final ValueChanged<DiaryEntry> onOpen;
   final ValueChanged<bool> onScrollStateChanged;
+  final String query;
+  final HomeViewMode viewMode;
+  final int scrollToTopSignal;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -31,9 +37,8 @@ class _HomePageState extends State<HomePage> {
   static const _minGridCardWidth = 180.0;
   static const _maxGridColumns = 7;
   static const _gridSpacing = 10.0;
-
-  String _query = '';
-  _HomeViewMode _viewMode = _HomeViewMode.timeline;
+  final ScrollController _scrollController = ScrollController();
+  late int _handledScrollToTopSignal;
 
   int _dynamicColumnCount(double width) {
     final rawCount = ((width + _gridSpacing) /
@@ -43,10 +48,51 @@ class _HomePageState extends State<HomePage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _handledScrollToTopSignal = widget.scrollToTopSignal;
+  }
+
+  @override
+  void didUpdateWidget(covariant HomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.scrollToTopSignal != _handledScrollToTopSignal) {
+      _handledScrollToTopSignal = widget.scrollToTopSignal;
+      _scrollToTop();
+    }
+  }
+
+  Future<void> _scrollToTop() async {
+    if (!_scrollController.hasClients) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          _scrollController.animateTo(
+            0,
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeOutCubic,
+          );
+        }
+      });
+      return;
+    }
+    await _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Consumer<DiaryAppState>(
       builder: (context, appState, _) {
-        final query = _query.toLowerCase();
+        final query = widget.query.toLowerCase();
         final filtered = appState.entries.where((entry) {
           final title = entry.title.toLowerCase();
           final body = entry.plainText.toLowerCase();
@@ -63,76 +109,22 @@ class _HomePageState extends State<HomePage> {
           sections.putIfAbsent(day, () => <DiaryEntry>[]).add(entry);
         }
 
-        return Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: Column(
-                children: [
-                  TextField(
-                    decoration: InputDecoration(
-                      hintText: tr(
-                        context,
-                        zh: '搜索标题或内容',
-                        en: 'Search title or content',
-                      ),
-                      prefixIcon: const Icon(Icons.search),
-                    ),
-                    onChanged: (value) => setState(() => _query = value.trim()),
-                  ),
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: SegmentedButton<_HomeViewMode>(
-                        showSelectedIcon: false,
-                        segments: [
-                          ButtonSegment(
-                            value: _HomeViewMode.timeline,
-                            icon: const Icon(Icons.timeline_outlined),
-                            label: Text(tr(context, zh: '时间轴', en: 'Timeline')),
-                          ),
-                          ButtonSegment(
-                            value: _HomeViewMode.grid,
-                            icon: const Icon(Icons.grid_view_rounded),
-                            label: Text(tr(context, zh: '网格', en: 'Grid')),
-                          ),
-                        ],
-                        selected: {_viewMode},
-                        onSelectionChanged: (selection) {
-                          final next = selection.first;
-                          if (next == _viewMode) {
-                            return;
-                          }
-                          setState(() => _viewMode = next);
-                        },
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: filtered.isEmpty
-                  ? _EmptyState(onCreate: widget.onCreate)
-                  : NotificationListener<UserScrollNotification>(
-                      onNotification: (notification) {
-                        if (notification.direction == ScrollDirection.reverse) {
-                          widget.onScrollStateChanged(false);
-                        } else if (notification.direction ==
-                            ScrollDirection.forward) {
-                          widget.onScrollStateChanged(true);
-                        }
-                        return false;
-                      },
-                      child: RefreshIndicator(
-                        onRefresh: appState.refreshEntries,
-                        child: _buildContent(filtered, sections),
-                      ),
-                    ),
-            ),
-          ],
+        if (filtered.isEmpty) {
+          return _EmptyState(onCreate: widget.onCreate);
+        }
+        return NotificationListener<UserScrollNotification>(
+          onNotification: (notification) {
+            if (notification.direction == ScrollDirection.reverse) {
+              widget.onScrollStateChanged(false);
+            } else if (notification.direction == ScrollDirection.forward) {
+              widget.onScrollStateChanged(true);
+            }
+            return false;
+          },
+          child: RefreshIndicator(
+            onRefresh: appState.refreshEntries,
+            child: _buildContent(filtered, sections),
+          ),
         );
       },
     );
@@ -142,8 +134,9 @@ class _HomePageState extends State<HomePage> {
     List<DiaryEntry> entries,
     Map<DateTime, List<DiaryEntry>> sections,
   ) {
-    if (_viewMode == _HomeViewMode.timeline) {
+    if (widget.viewMode == HomeViewMode.timeline) {
       return ListView.builder(
+        controller: _scrollController,
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 120),
         itemCount: sections.length,
         itemBuilder: (context, index) {
@@ -162,6 +155,7 @@ class _HomePageState extends State<HomePage> {
       builder: (context, constraints) {
         final columns = _dynamicColumnCount(constraints.maxWidth);
         return MasonryGridView.builder(
+          controller: _scrollController,
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 120),
           gridDelegate: SliverSimpleGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columns,

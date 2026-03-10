@@ -20,6 +20,10 @@ class _HomeShellState extends State<HomeShell> {
   static const _tabletBreakpoint = 840.0;
   int _index = 0;
   bool _fabExtended = true;
+  String _homeQuery = '';
+  bool _homeBottomBarVisible = true;
+  bool _showHomeScrollToTop = false;
+  int _homeScrollToTopSignal = 0;
 
   Future<void> _openEditor([DiaryEntry? entry]) async {
     await Navigator.of(context).push<bool>(
@@ -41,6 +45,54 @@ class _HomeShellState extends State<HomeShell> {
     await context.read<DiaryAppState>().refreshEntries();
   }
 
+  Future<void> _openHomeSearchDialog() async {
+    final controller = TextEditingController(text: _homeQuery);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(tr(context, zh: '搜索', en: 'Search')),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: tr(
+              context,
+              zh: '搜索标题或内容',
+              en: 'Search title or content',
+            ),
+            prefixIcon: const Icon(Icons.search),
+          ),
+          onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(tr(context, zh: '取消', en: 'Cancel')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(''),
+            child: Text(tr(context, zh: '清除', en: 'Clear')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            child: Text(tr(context, zh: '确定', en: 'Done')),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result == null) {
+      return;
+    }
+    setState(() => _homeQuery = result);
+  }
+
+  void _toggleHomeLayoutMode() {
+    final appState = context.read<DiaryAppState>();
+    final next = appState.homeLayoutMode == 'timeline' ? 'grid' : 'timeline';
+    appState.setHomeLayoutMode(next);
+  }
+
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<DiaryAppState>();
@@ -53,11 +105,24 @@ class _HomeShellState extends State<HomeShell> {
       HomePage(
         onCreate: () => _openEditor(),
         onOpen: _openPreview,
+        query: _homeQuery,
+        viewMode: appState.homeLayoutMode == 'timeline'
+            ? HomeViewMode.timeline
+            : HomeViewMode.grid,
+        scrollToTopSignal: _homeScrollToTopSignal,
         onScrollStateChanged: (extended) {
-          if (_fabExtended == extended) {
+          final bottomVisible = extended;
+          final showTopArrow = !extended;
+          if (_fabExtended == extended &&
+              _homeBottomBarVisible == bottomVisible &&
+              _showHomeScrollToTop == showTopArrow) {
             return;
           }
-          setState(() => _fabExtended = extended);
+          setState(() {
+            _fabExtended = extended;
+            _homeBottomBarVisible = bottomVisible;
+            _showHomeScrollToTop = showTopArrow;
+          });
         },
       ),
       CalendarPage(onOpen: _openPreview),
@@ -82,14 +147,52 @@ class _HomeShellState extends State<HomeShell> {
       builder: (context, constraints) {
         final isTablet = constraints.maxWidth >= _tabletBreakpoint;
         return Scaffold(
-          appBar: AppBar(title: Text(titles[_index])),
+          appBar: AppBar(
+            title: Text(titles[_index]),
+            actions: _index == 0
+                ? [
+                    IconButton(
+                      tooltip: tr(context, zh: '搜索', en: 'Search'),
+                      onPressed: _openHomeSearchDialog,
+                      icon: Icon(
+                        Icons.search,
+                        color: _homeQuery.isNotEmpty
+                            ? Theme.of(context).colorScheme.primary
+                            : null,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: appState.homeLayoutMode == 'timeline'
+                          ? tr(context, zh: '切换到网格', en: 'Switch to grid')
+                          : tr(
+                              context,
+                              zh: '切换到时间轴',
+                              en: 'Switch to timeline',
+                            ),
+                      onPressed: _toggleHomeLayoutMode,
+                      icon: Icon(
+                        appState.homeLayoutMode == 'timeline'
+                            ? Icons.grid_view_rounded
+                            : Icons.timeline_outlined,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                  ]
+                : null,
+          ),
           body: isTablet
               ? Row(
                   children: [
                     NavigationRail(
                       selectedIndex: _index,
-                      onDestinationSelected: (value) =>
-                          setState(() => _index = value),
+                      onDestinationSelected: (value) => setState(() {
+                        _index = value;
+                        if (_index != 0) {
+                          _homeBottomBarVisible = true;
+                          _showHomeScrollToTop = false;
+                          _fabExtended = true;
+                        }
+                      }),
                       labelType: NavigationRailLabelType.all,
                       destinations: destinations
                           .map(
@@ -109,47 +212,94 @@ class _HomeShellState extends State<HomeShell> {
                 )
               : IndexedStack(index: _index, children: pages),
           floatingActionButton: _index == 0
-              ? AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 220),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeInCubic,
-                  child: _fabExtended
-                      ? FloatingActionButton.extended(
-                          key: const ValueKey('fab_extended'),
-                          onPressed: () => _openEditor(),
-                          icon: const Icon(Icons.edit_note_outlined),
-                          label: Text(
-                            tr(context, zh: '写日记', en: 'Write Diary'),
-                          ),
-                        )
-                      : FloatingActionButton(
-                          key: const ValueKey('fab_compact'),
-                          onPressed: () => _openEditor(),
-                          child: const Icon(Icons.edit_outlined),
-                        ),
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    if (_showHomeScrollToTop) ...[
+                      FloatingActionButton(
+                        heroTag: 'home_scroll_to_top',
+                        onPressed: () {
+                          setState(() {
+                            _homeScrollToTopSignal++;
+                            _homeBottomBarVisible = true;
+                            _showHomeScrollToTop = false;
+                            _fabExtended = true;
+                          });
+                        },
+                        child: const Icon(Icons.keyboard_arrow_up),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      child: _fabExtended
+                          ? FloatingActionButton.extended(
+                              key: const ValueKey('fab_extended'),
+                              onPressed: () => _openEditor(),
+                              icon: const Icon(Icons.edit_note_outlined),
+                              label: Text(
+                                tr(context, zh: '写日记', en: 'Write Diary'),
+                              ),
+                            )
+                          : FloatingActionButton(
+                              key: const ValueKey('fab_compact'),
+                              onPressed: () => _openEditor(),
+                              child: const Icon(Icons.edit_outlined),
+                            ),
+                    ),
+                  ],
                 )
               : null,
           bottomNavigationBar: isTablet
               ? null
-              : Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 180),
-                      child: appState.syncing
-                          ? const SizedBox(
-                              height: 2,
-                              child: LinearProgressIndicator(),
-                            )
-                          : const SizedBox(height: 2),
-                    ),
-                    NavigationBar(
-                      selectedIndex: _index,
-                      onDestinationSelected: (value) =>
-                          setState(() => _index = value),
-                      destinations: destinations,
-                    ),
-                  ],
+              : TweenAnimationBuilder<double>(
+                  tween: Tween<double>(
+                    begin: 0,
+                    end: (_index == 0 && !_homeBottomBarVisible) ? 0 : 1,
+                  ),
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, value, child) {
+                    return ClipRect(
+                      child: Align(
+                        alignment: Alignment.bottomCenter,
+                        heightFactor: value,
+                        child: FractionalTranslation(
+                          translation: Offset(0, 1 - value),
+                          child: Opacity(opacity: value, child: child),
+                        ),
+                      ),
+                    );
+                  },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 180),
+                        child: appState.syncing
+                            ? const SizedBox(
+                                height: 2,
+                                child: LinearProgressIndicator(),
+                              )
+                            : const SizedBox(height: 2),
+                      ),
+                      NavigationBar(
+                        selectedIndex: _index,
+                        onDestinationSelected: (value) => setState(() {
+                          _index = value;
+                          if (_index != 0) {
+                            _homeBottomBarVisible = true;
+                            _showHomeScrollToTop = false;
+                            _fabExtended = true;
+                          }
+                        }),
+                        destinations: destinations,
+                      ),
+                    ],
+                  ),
                 ),
         );
       },

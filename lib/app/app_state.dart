@@ -32,6 +32,7 @@ class DiaryAppState extends ChangeNotifier {
   DateTime? _lastSyncAt;
   WebDavConfig _webDavConfig = const WebDavConfig();
   List<DiaryEntry> _entries = const [];
+  String _homeLayoutMode = 'grid';
 
   bool get loading => _loading;
   bool get syncing => _syncing;
@@ -40,12 +41,14 @@ class DiaryAppState extends ChangeNotifier {
   DateTime? get lastSyncAt => _lastSyncAt;
   WebDavConfig get webDavConfig => _webDavConfig;
   List<DiaryEntry> get entries => _entries;
+  String get homeLayoutMode => _homeLayoutMode;
 
   Future<void> initialize() async {
     _themeMode = await _settingsRepository.loadThemeMode();
     _locale = await _settingsRepository.loadLocale();
     _webDavConfig = await _settingsRepository.loadWebDavConfig();
     _lastSyncAt = await _settingsRepository.loadLastSyncAt();
+    _homeLayoutMode = await _settingsRepository.loadHomeLayoutMode();
     await refreshEntries();
 
     if (_webDavConfig.isConfigured) {
@@ -108,6 +111,16 @@ class DiaryAppState extends ChangeNotifier {
   Future<void> setLocale(Locale locale) async {
     _locale = locale;
     await _settingsRepository.saveLocale(locale);
+    notifyListeners();
+  }
+
+  Future<void> setHomeLayoutMode(String mode) async {
+    final normalized = mode == 'timeline' ? 'timeline' : 'grid';
+    if (_homeLayoutMode == normalized) {
+      return;
+    }
+    _homeLayoutMode = normalized;
+    await _settingsRepository.saveHomeLayoutMode(normalized);
     notifyListeners();
   }
 
