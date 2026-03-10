@@ -266,12 +266,15 @@ class _HomeShellState extends State<HomeShell> {
                               )
                             : const SizedBox(height: 2),
                       ),
-                      NavigationBar(
-                        selectedIndex: _index,
-                        onDestinationSelected: (value) => setState(() {
-                          _index = value;
-                          if (_index != 0) {
-                            _homeBottomBarVisible = true;
+                            NavigationBar(
+                              height: 64,
+                              selectedIndex: _index,
+                              labelBehavior:
+                                  NavigationDestinationLabelBehavior.alwaysHide,
+                              onDestinationSelected: (value) => setState(() {
+                                _index = value;
+                                if (_index != 0) {
+                                  _homeBottomBarVisible = true;
                             _showHomeScrollToTop = false;
                           }
                         }),
