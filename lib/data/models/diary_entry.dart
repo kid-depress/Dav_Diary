@@ -186,10 +186,12 @@ class DiaryEntry {
   String? get firstImagePath {
     for (final attachment in attachments) {
       if (attachment.isVisualImage) {
+        if (attachment.path.isNotEmpty) {
+          return attachment.path;
+        }
         if (attachment.thumbnailPath.isNotEmpty) {
           return attachment.thumbnailPath;
         }
-        return attachment.path;
       }
     }
     return null;

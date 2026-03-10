@@ -5,8 +5,11 @@ import 'package:diary/app/i18n.dart';
 import 'package:diary/data/models/diary_entry.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
+enum _HomeViewMode { timeline, grid }
 
 class HomePage extends StatefulWidget {
   const HomePage({
@@ -25,7 +28,19 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  static const _minGridCardWidth = 180.0;
+  static const _maxGridColumns = 7;
+  static const _gridSpacing = 10.0;
+
   String _query = '';
+  _HomeViewMode _viewMode = _HomeViewMode.timeline;
+
+  int _dynamicColumnCount(double width) {
+    final rawCount = ((width + _gridSpacing) /
+            (_minGridCardWidth + _gridSpacing))
+        .floor();
+    return rawCount.clamp(1, _maxGridColumns);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,16 +67,50 @@ class _HomePageState extends State<HomePage> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: TextField(
-                decoration: InputDecoration(
-                  hintText: tr(
-                    context,
-                    zh: '搜索标题或内容',
-                    en: 'Search title or content',
+              child: Column(
+                children: [
+                  TextField(
+                    decoration: InputDecoration(
+                      hintText: tr(
+                        context,
+                        zh: '搜索标题或内容',
+                        en: 'Search title or content',
+                      ),
+                      prefixIcon: const Icon(Icons.search),
+                    ),
+                    onChanged: (value) => setState(() => _query = value.trim()),
                   ),
-                  prefixIcon: const Icon(Icons.search),
-                ),
-                onChanged: (value) => setState(() => _query = value.trim()),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: SegmentedButton<_HomeViewMode>(
+                        showSelectedIcon: false,
+                        segments: [
+                          ButtonSegment(
+                            value: _HomeViewMode.timeline,
+                            icon: const Icon(Icons.timeline_outlined),
+                            label: Text(tr(context, zh: '时间轴', en: 'Timeline')),
+                          ),
+                          ButtonSegment(
+                            value: _HomeViewMode.grid,
+                            icon: const Icon(Icons.grid_view_rounded),
+                            label: Text(tr(context, zh: '网格', en: 'Grid')),
+                          ),
+                        ],
+                        selected: {_viewMode},
+                        onSelectionChanged: (selection) {
+                          final next = selection.first;
+                          if (next == _viewMode) {
+                            return;
+                          }
+                          setState(() => _viewMode = next);
+                        },
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             Expanded(
@@ -79,23 +128,54 @@ class _HomePageState extends State<HomePage> {
                       },
                       child: RefreshIndicator(
                         onRefresh: appState.refreshEntries,
-                        child: ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(16, 10, 16, 120),
-                          itemCount: sections.length,
-                          itemBuilder: (context, index) {
-                            final day = sections.keys.elementAt(index);
-                            final entries = sections[day]!;
-                            return _TimelineDaySection(
-                              day: day,
-                              entries: entries,
-                              onOpen: widget.onOpen,
-                            );
-                          },
-                        ),
+                        child: _buildContent(filtered, sections),
                       ),
                     ),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  Widget _buildContent(
+    List<DiaryEntry> entries,
+    Map<DateTime, List<DiaryEntry>> sections,
+  ) {
+    if (_viewMode == _HomeViewMode.timeline) {
+      return ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 120),
+        itemCount: sections.length,
+        itemBuilder: (context, index) {
+          final day = sections.keys.elementAt(index);
+          final dayEntries = sections[day]!;
+          return _TimelineDaySection(
+            day: day,
+            entries: dayEntries,
+            onOpen: widget.onOpen,
+          );
+        },
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = _dynamicColumnCount(constraints.maxWidth);
+        return MasonryGridView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 120),
+          gridDelegate: SliverSimpleGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+          ),
+          mainAxisSpacing: _gridSpacing,
+          crossAxisSpacing: _gridSpacing,
+          itemCount: entries.length,
+          itemBuilder: (context, index) {
+            final entry = entries[index];
+            return _MasonryEntryCard(
+              entry: entry,
+              onTap: () => widget.onOpen(entry),
+            );
+          },
         );
       },
     );
@@ -147,45 +227,78 @@ class _TimelineDaySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     final title = DateFormat('yyyy.MM.dd  EEEE').format(day);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
-      child: Row(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
-            children: [
-              Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: colors.primary,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              Container(
-                width: 2,
-                height: entries.length * 150.0,
-                color: colors.surfaceContainerHighest,
-              ),
-            ],
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(title, style: Theme.of(context).textTheme.titleMedium),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
-                for (final entry in entries) ...[
-                  _TimelineEntryCard(entry: entry, onTap: () => onOpen(entry)),
-                  const SizedBox(height: 10),
-                ],
-              ],
+          for (var i = 0; i < entries.length; i++)
+            _TimelineEntryRow(
+              entry: entries[i],
+              isLast: i == entries.length - 1,
+              onTap: () => onOpen(entries[i]),
             ),
-          ),
         ],
+      ),
+    );
+  }
+}
+
+class _TimelineEntryRow extends StatelessWidget {
+  const _TimelineEntryRow({
+    required this.entry,
+    required this.isLast,
+    required this.onTap,
+  });
+
+  final DiaryEntry entry;
+  final bool isLast;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: 20,
+              child: Column(
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    margin: const EdgeInsets.only(top: 8),
+                    decoration: BoxDecoration(
+                      color: colors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  if (!isLast)
+                    Expanded(
+                      child: Container(
+                        width: 2,
+                        margin: const EdgeInsets.symmetric(vertical: 4),
+                        color: colors.surfaceContainerHighest,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _TimelineEntryCard(entry: entry, onTap: onTap),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -200,164 +313,160 @@ class _TimelineEntryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final imagePath = entry.firstImagePath;
-    final dateText = DateFormat('HH:mm').format(entry.eventAt);
-    final summary = entry.summary.isEmpty
-        ? tr(context, zh: '点击继续书写...', en: 'Tap to continue...')
-        : entry.summary;
+    final hasImage = imagePath != null && imagePath.isNotEmpty;
+    final summary = entry.summary;
+    final hasBodyText = summary.isNotEmpty;
 
     return Card(
       color: Theme.of(context).colorScheme.surfaceContainerLow,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: imagePath != null && imagePath.isNotEmpty
-            ? _ImageEntryLayout(
-                imagePath: imagePath,
-                summary: summary,
-                dateText: dateText,
-              )
-            : _TextEntryLayout(
-                summary: summary,
-                dateText: dateText,
-                mood: entry.mood,
-                weather: entry.weather,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (hasImage)
+              AspectRatio(
+                aspectRatio: 16 / 9,
+                child: Image.file(
+                  File(imagePath),
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, _, _) => Container(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    child: const Icon(Icons.broken_image_outlined),
+                  ),
+                ),
               ),
-      ),
-    );
-  }
-}
-
-class _ImageEntryLayout extends StatelessWidget {
-  const _ImageEntryLayout({
-    required this.imagePath,
-    required this.summary,
-    required this.dateText,
-  });
-
-  final String imagePath;
-  final String summary;
-  final String dateText;
-
-  @override
-  Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 16 / 10,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Image.file(
-            File(imagePath),
-            fit: BoxFit.cover,
-            errorBuilder: (context, _, _) => Container(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: const Icon(Icons.broken_image_outlined),
-            ),
-          ),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withValues(alpha: 0.12),
-                  Colors.black.withValues(alpha: 0.5),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (hasBodyText) ...[
+                    Text(
+                      summary,
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  Text(
+                    DateFormat('MM-dd HH:mm').format(entry.eventAt),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 ],
               ),
             ),
-          ),
-          Positioned(
-            left: 14,
-            right: 14,
-            bottom: 14,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.32),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 8,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      summary,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      dateText,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-class _TextEntryLayout extends StatelessWidget {
-  const _TextEntryLayout({
-    required this.summary,
-    required this.dateText,
-    required this.mood,
-    required this.weather,
-  });
+class _MasonryEntryCard extends StatelessWidget {
+  const _MasonryEntryCard({required this.entry, required this.onTap});
 
-  final String summary;
-  final String dateText;
-  final String mood;
-  final String weather;
+  final DiaryEntry entry;
+  final VoidCallback onTap;
+
+  static const _imageAspectOptions = [0.95, 1.0, 1.08, 1.18, 1.28];
+
+  int _textLineCount(String text) {
+    if (text.length <= 30) {
+      return 2;
+    }
+    if (text.length <= 70) {
+      return 3;
+    }
+    if (text.length <= 110) {
+      return 4;
+    }
+    return 5;
+  }
+
+  double _imageAspectBySeed(String seed) {
+    final index = seed.hashCode.abs() % _imageAspectOptions.length;
+    return _imageAspectOptions[index];
+  }
 
   @override
   Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme;
-    final firstChar = summary.isEmpty ? '' : summary.substring(0, 1);
-    final tailText = summary.length <= 1 ? '' : summary.substring(1);
+    final imagePath = entry.firstImagePath;
+    final hasImage = imagePath != null && imagePath.isNotEmpty;
+    final summary = entry.summary;
+    final hasBodyText = summary.isNotEmpty;
+    final lineCount = hasBodyText ? _textLineCount(summary) : 0;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: color.tertiaryContainer.withValues(alpha: 0.45),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          RichText(
-            text: TextSpan(
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(color: color.onSurface),
-              children: [
-                TextSpan(
-                  text: firstChar,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    height: 1.0,
+    return Card(
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (hasImage)
+              AspectRatio(
+                aspectRatio: _imageAspectBySeed(entry.id),
+                child: Image.file(
+                  File(imagePath),
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, _, _) => Container(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    child: const Icon(Icons.broken_image_outlined),
                   ),
                 ),
-                TextSpan(text: tailText),
-              ],
+              )
+            else
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                color: Theme.of(
+                  context,
+                ).colorScheme.secondaryContainer.withValues(alpha: 0.55),
+                child: Text(
+                  '${entry.mood}  ${entry.weather}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (hasBodyText)
+                    Text(
+                      summary,
+                      maxLines: lineCount,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  if (entry.location.trim().isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      entry.location.trim(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Text(
+                    DateFormat('MM-dd HH:mm').format(entry.eventAt),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '$mood  $weather  •  $dateText',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

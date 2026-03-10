@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:diary/data/models/diary_entry.dart';
@@ -89,13 +90,13 @@ class DiaryAppState extends ChangeNotifier {
   Future<void> saveEntry(DiaryEntry entry) async {
     await _diaryRepository.upsert(entry);
     await refreshEntries();
-    await _autoSyncAfterLocalChange();
+    _triggerAutoSyncAfterLocalChange();
   }
 
   Future<void> deleteEntry(String id) async {
     await _diaryRepository.softDelete(id);
     await refreshEntries();
-    await _autoSyncAfterLocalChange();
+    _triggerAutoSyncAfterLocalChange();
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
@@ -131,11 +132,11 @@ class DiaryAppState extends ChangeNotifier {
     return result;
   }
 
-  Future<void> _autoSyncAfterLocalChange() async {
+  void _triggerAutoSyncAfterLocalChange() {
     if (!_webDavConfig.isConfigured || _syncing) {
       return;
     }
-    await syncNow();
+    unawaited(syncNow());
   }
 
   Future<DiaryAttachment?> restoreAttachmentForEntry(

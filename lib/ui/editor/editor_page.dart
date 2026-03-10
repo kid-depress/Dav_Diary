@@ -483,106 +483,161 @@ class _EditorPageState extends State<EditorPage> {
   }
 
   Future<void> _openMoodSheet() async {
-    await showModalBottomSheet<void>(
+    var selectedMood = _selectedMood;
+    final descController = TextEditingController(text: _moodDescController.text);
+    final saved = await showModalBottomSheet<bool>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
       builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              8,
-              16,
-              MediaQuery.of(context).viewInsets.bottom + 16,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  tr(context, zh: '心情', en: 'Mood'),
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final mood in _moodOptions)
-                      ChoiceChip(
-                        label: Text(mood),
-                        selected: _selectedMood == mood,
-                        onSelected: (_) => setState(() => _selectedMood = mood),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _moodDescController,
-                  maxLength: 40,
-                  decoration: InputDecoration(
-                    hintText: tr(context, zh: '补充心情描述', en: 'Mood notes'),
+        return StatefulBuilder(
+          builder: (context, modalSetState) => SafeArea(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                8,
+                16,
+                MediaQuery.of(context).viewInsets.bottom + 16,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tr(context, zh: '心情', en: 'Mood'),
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final mood in _moodOptions)
+                        ChoiceChip(
+                          label: Text(mood),
+                          selected: selectedMood == mood,
+                          onSelected: (_) =>
+                              modalSetState(() => selectedMood = mood),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: descController,
+                    maxLength: 40,
+                    decoration: InputDecoration(
+                      hintText: tr(context, zh: '补充心情描述', en: 'Mood notes'),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: Text(tr(context, zh: '取消', en: 'Cancel')),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        child: Text(tr(context, zh: '确定', en: 'Done')),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         );
       },
     );
+    if (saved == true && mounted) {
+      setState(() {
+        _selectedMood = selectedMood;
+        _moodDescController.text = descController.text.trim();
+      });
+    }
+    descController.dispose();
   }
 
   Future<void> _openWeatherSheet() async {
-    await showModalBottomSheet<void>(
+    var selectedWeather = _selectedWeather;
+    final descController = TextEditingController(
+      text: _weatherDescController.text,
+    );
+    final saved = await showModalBottomSheet<bool>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
       builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              8,
-              16,
-              MediaQuery.of(context).viewInsets.bottom + 16,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  tr(context, zh: '天气', en: 'Weather'),
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final weather in _weatherOptions)
-                      ChoiceChip(
-                        label: Text(weather),
-                        selected: _selectedWeather == weather,
-                        onSelected: (_) =>
-                            setState(() => _selectedWeather = weather),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _weatherDescController,
-                  maxLength: 40,
-                  decoration: InputDecoration(
-                    hintText: tr(context, zh: '补充天气描述', en: 'Weather notes'),
+        return StatefulBuilder(
+          builder: (context, modalSetState) => SafeArea(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                8,
+                16,
+                MediaQuery.of(context).viewInsets.bottom + 16,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tr(context, zh: '天气', en: 'Weather'),
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final weather in _weatherOptions)
+                        ChoiceChip(
+                          label: Text(weather),
+                          selected: selectedWeather == weather,
+                          onSelected: (_) =>
+                              modalSetState(() => selectedWeather = weather),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: descController,
+                    maxLength: 40,
+                    decoration: InputDecoration(
+                      hintText: tr(context, zh: '补充天气描述', en: 'Weather notes'),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: Text(tr(context, zh: '取消', en: 'Cancel')),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        child: Text(tr(context, zh: '确定', en: 'Done')),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         );
       },
     );
+    if (saved == true && mounted) {
+      setState(() {
+        _selectedWeather = selectedWeather;
+        _weatherDescController.text = descController.text.trim();
+      });
+    }
+    descController.dispose();
   }
 
   Widget _formatButton({
@@ -972,7 +1027,7 @@ class _AttachmentThumb extends StatelessWidget {
                     Image.file(
                       File(imagePath),
                       fit: BoxFit.cover,
-                      cacheWidth: 200,
+                      cacheWidth: 400,
                       errorBuilder: (context, _, _) =>
                           const Icon(Icons.broken_image_outlined),
                     )

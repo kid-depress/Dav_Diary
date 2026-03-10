@@ -24,9 +24,10 @@ Future<Map<String, Uint8List>> _processImageInIsolate(
   Map<String, Object> payload,
 ) async {
   final bytes = payload['bytes'] as Uint8List;
-  final maxEdge = (payload['maxEdge'] ?? 1920) as int;
-  final thumbEdge = (payload['thumbEdge'] ?? 360) as int;
-  final quality = (payload['quality'] ?? 84) as int;
+  final maxEdge = (payload['maxEdge'] ?? 2300) as int;
+  final thumbEdge = (payload['thumbEdge'] ?? 560) as int;
+  final quality = (payload['quality'] ?? 88) as int;
+  final thumbQuality = (payload['thumbQuality'] ?? 84) as int;
   final sourceName = (payload['sourceName'] ?? '') as String;
 
   final decoded = img.decodeImage(bytes);
@@ -53,7 +54,9 @@ Future<Map<String, Uint8List>> _processImageInIsolate(
   final main = keepPng
       ? Uint8List.fromList(img.encodePng(resized, level: 6))
       : Uint8List.fromList(img.encodeJpg(resized, quality: quality));
-  final thumbnail = Uint8List.fromList(img.encodeJpg(thumb, quality: 72));
+  final thumbnail = Uint8List.fromList(
+    img.encodeJpg(thumb, quality: thumbQuality),
+  );
 
   return <String, Uint8List>{'main': main, 'thumb': thumbnail};
 }
@@ -102,9 +105,10 @@ class StorageService {
     final processed = await compute(_processImageInIsolate, <String, Object>{
       'bytes': raw,
       'sourceName': p.basename(sourcePath),
-      'maxEdge': 1920,
-      'thumbEdge': 360,
-      'quality': 84,
+      'maxEdge': 2300,
+      'thumbEdge': 560,
+      'quality': 88,
+      'thumbQuality': 84,
     });
 
     final ext = p.extension(sourcePath).toLowerCase();
@@ -246,9 +250,10 @@ class StorageService {
       final processed = await compute(_processImageInIsolate, <String, Object>{
         'bytes': bytes,
         'sourceName': sourceName ?? '',
-        'maxEdge': 1920,
-        'thumbEdge': 360,
-        'quality': 84,
+        'maxEdge': 2300,
+        'thumbEdge': 560,
+        'quality': 88,
+        'thumbQuality': 84,
       });
       final thumbBytes = processed['thumb'];
       if (thumbBytes != null) {
@@ -277,9 +282,10 @@ class StorageService {
     final processed = await compute(_processImageInIsolate, <String, Object>{
       'bytes': bytes,
       'sourceName': 'doodle.png',
-      'maxEdge': 2048,
-      'thumbEdge': 360,
-      'quality': 84,
+      'maxEdge': 2300,
+      'thumbEdge': 560,
+      'quality': 88,
+      'thumbQuality': 84,
     });
     var thumbPath = '';
     final thumbBytes = processed['thumb'];
