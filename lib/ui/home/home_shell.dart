@@ -19,7 +19,6 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   static const _tabletBreakpoint = 840.0;
   int _index = 0;
-  bool _fabExtended = true;
   String _homeQuery = '';
   bool _homeBottomBarVisible = true;
   bool _showHomeScrollToTop = false;
@@ -113,13 +112,11 @@ class _HomeShellState extends State<HomeShell> {
         onScrollStateChanged: (extended) {
           final bottomVisible = extended;
           final showTopArrow = !extended;
-          if (_fabExtended == extended &&
-              _homeBottomBarVisible == bottomVisible &&
+          if (_homeBottomBarVisible == bottomVisible &&
               _showHomeScrollToTop == showTopArrow) {
             return;
           }
           setState(() {
-            _fabExtended = extended;
             _homeBottomBarVisible = bottomVisible;
             _showHomeScrollToTop = showTopArrow;
           });
@@ -190,7 +187,6 @@ class _HomeShellState extends State<HomeShell> {
                         if (_index != 0) {
                           _homeBottomBarVisible = true;
                           _showHomeScrollToTop = false;
-                          _fabExtended = true;
                         }
                       }),
                       labelType: NavigationRailLabelType.all,
@@ -224,31 +220,15 @@ class _HomeShellState extends State<HomeShell> {
                             _homeScrollToTopSignal++;
                             _homeBottomBarVisible = true;
                             _showHomeScrollToTop = false;
-                            _fabExtended = true;
                           });
                         },
                         child: const Icon(Icons.keyboard_arrow_up),
                       ),
                       const SizedBox(height: 10),
                     ],
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 220),
-                      switchInCurve: Curves.easeOutCubic,
-                      switchOutCurve: Curves.easeInCubic,
-                      child: _fabExtended
-                          ? FloatingActionButton.extended(
-                              key: const ValueKey('fab_extended'),
-                              onPressed: () => _openEditor(),
-                              icon: const Icon(Icons.edit_note_outlined),
-                              label: Text(
-                                tr(context, zh: '写日记', en: 'Write Diary'),
-                              ),
-                            )
-                          : FloatingActionButton(
-                              key: const ValueKey('fab_compact'),
-                              onPressed: () => _openEditor(),
-                              child: const Icon(Icons.edit_outlined),
-                            ),
+                    FloatingActionButton(
+                      onPressed: () => _openEditor(),
+                      child: const Icon(Icons.edit_outlined),
                     ),
                   ],
                 )
@@ -293,7 +273,6 @@ class _HomeShellState extends State<HomeShell> {
                           if (_index != 0) {
                             _homeBottomBarVisible = true;
                             _showHomeScrollToTop = false;
-                            _fabExtended = true;
                           }
                         }),
                         destinations: destinations,
