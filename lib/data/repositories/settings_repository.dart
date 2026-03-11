@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsRepository {
   static const _keyThemeMode = 'theme_mode';
+  static const _keyThemeSeedColor = 'theme_seed_color';
   static const _keyLocale = 'locale';
   static const _keyWebDavConfig = 'webdav_config';
   static const _keyLastSyncAt = 'last_sync_at';
@@ -29,6 +30,21 @@ class SettingsRepository {
   Future<void> saveThemeMode(ThemeMode mode) async {
     final prefs = await _prefs;
     await prefs.setString(_keyThemeMode, mode.name);
+  }
+
+  Future<Color> loadThemeSeedColor() async {
+    const fallback = Color(0xFF7A8DA1);
+    final prefs = await _prefs;
+    final value = prefs.getInt(_keyThemeSeedColor);
+    if (value == null) {
+      return fallback;
+    }
+    return Color(value);
+  }
+
+  Future<void> saveThemeSeedColor(Color color) async {
+    final prefs = await _prefs;
+    await prefs.setInt(_keyThemeSeedColor, color.toARGB32());
   }
 
   Future<Locale> loadLocale() async {

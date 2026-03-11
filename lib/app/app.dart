@@ -57,8 +57,14 @@ class _DiaryAppBootstrapState extends State<DiaryAppBootstrap> {
                   Locale('en', 'US'),
                 ],
                 themeMode: appState.themeMode,
-                theme: _buildTheme(brightness: Brightness.light),
-                darkTheme: _buildTheme(brightness: Brightness.dark),
+                theme: _buildTheme(
+                  brightness: Brightness.light,
+                  seedColor: appState.themeSeedColor,
+                ),
+                darkTheme: _buildTheme(
+                  brightness: Brightness.dark,
+                  seedColor: appState.themeSeedColor,
+                ),
                 localizationsDelegates: const [
                   GlobalMaterialLocalizations.delegate,
                   GlobalCupertinoLocalizations.delegate,
@@ -74,9 +80,12 @@ class _DiaryAppBootstrapState extends State<DiaryAppBootstrap> {
     );
   }
 
-  ThemeData _buildTheme({required Brightness brightness}) {
+  ThemeData _buildTheme({
+    required Brightness brightness,
+    required Color seedColor,
+  }) {
     final scheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF7A8DA1),
+      seedColor: seedColor,
       brightness: brightness,
       dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
     );

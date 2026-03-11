@@ -28,6 +28,7 @@ class DiaryAppState extends ChangeNotifier {
   bool _loading = true;
   bool _syncing = false;
   ThemeMode _themeMode = ThemeMode.system;
+  Color _themeSeedColor = const Color(0xFF7A8DA1);
   Locale _locale = const Locale('zh', 'CN');
   DateTime? _lastSyncAt;
   WebDavConfig _webDavConfig = const WebDavConfig();
@@ -37,6 +38,7 @@ class DiaryAppState extends ChangeNotifier {
   bool get loading => _loading;
   bool get syncing => _syncing;
   ThemeMode get themeMode => _themeMode;
+  Color get themeSeedColor => _themeSeedColor;
   Locale get locale => _locale;
   DateTime? get lastSyncAt => _lastSyncAt;
   WebDavConfig get webDavConfig => _webDavConfig;
@@ -45,6 +47,7 @@ class DiaryAppState extends ChangeNotifier {
 
   Future<void> initialize() async {
     _themeMode = await _settingsRepository.loadThemeMode();
+    _themeSeedColor = await _settingsRepository.loadThemeSeedColor();
     _locale = await _settingsRepository.loadLocale();
     _webDavConfig = await _settingsRepository.loadWebDavConfig();
     _lastSyncAt = await _settingsRepository.loadLastSyncAt();
@@ -105,6 +108,15 @@ class DiaryAppState extends ChangeNotifier {
   Future<void> setThemeMode(ThemeMode mode) async {
     _themeMode = mode;
     await _settingsRepository.saveThemeMode(mode);
+    notifyListeners();
+  }
+
+  Future<void> setThemeSeedColor(Color color) async {
+    if (_themeSeedColor.toARGB32() == color.toARGB32()) {
+      return;
+    }
+    _themeSeedColor = color;
+    await _settingsRepository.saveThemeSeedColor(color);
     notifyListeners();
   }
 

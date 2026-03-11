@@ -594,6 +594,21 @@ class _MoodBarChartPainter extends CustomPainter {
 class AppearanceSettingsPage extends StatelessWidget {
   const AppearanceSettingsPage({super.key});
 
+  static const List<Color> _presetThemeSeedColors = [
+    Color(0xFF7A8DA1),
+    Color(0xFF1F8A70),
+    Color(0xFF00639A),
+    Color(0xFF7B5EA7),
+    Color(0xFFB25D43),
+    Color(0xFFAF3B6E),
+    Color(0xFF4E6E58),
+    Color(0xFF8F6B00),
+    Color(0xFF2F6F9F),
+    Color(0xFF008571),
+    Color(0xFF8C4A64),
+    Color(0xFF4F5D75),
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -602,63 +617,136 @@ class AppearanceSettingsPage extends StatelessWidget {
       ),
       body: Consumer<DiaryAppState>(
         builder: (context, appState, _) {
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  tr(context, zh: '主题', en: 'Theme'),
-                  style: Theme.of(context).textTheme.titleMedium,
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
+            children: [
+              Text(
+                tr(context, zh: '主题', en: 'Theme'),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 10),
+              SegmentedButton<ThemeMode>(
+                segments: [
+                  ButtonSegment(
+                    value: ThemeMode.system,
+                    label: Text(tr(context, zh: '跟随系统', en: 'System')),
+                  ),
+                  ButtonSegment(
+                    value: ThemeMode.light,
+                    label: Text(tr(context, zh: '浅色', en: 'Light')),
+                  ),
+                  ButtonSegment(
+                    value: ThemeMode.dark,
+                    label: Text(tr(context, zh: '深色', en: 'Dark')),
+                  ),
+                ],
+                selected: {appState.themeMode},
+                onSelectionChanged: (selection) {
+                  appState.setThemeMode(selection.first);
+                },
+              ),
+              const SizedBox(height: 20),
+              Text(
+                tr(context, zh: '自定义主题色', en: 'Custom Theme Color'),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                tr(
+                  context,
+                  zh: '选择一个种子颜色，应用将自动生成完整的 Material 3 配色方案。',
+                  en: 'Pick a seed color and generate a full Material 3 color scheme automatically.',
                 ),
-                const SizedBox(height: 10),
-                SegmentedButton<ThemeMode>(
-                  segments: [
-                    ButtonSegment(
-                      value: ThemeMode.system,
-                      label: Text(tr(context, zh: '跟随系统', en: 'System')),
-                    ),
-                    ButtonSegment(
-                      value: ThemeMode.light,
-                      label: Text(tr(context, zh: '浅色', en: 'Light')),
-                    ),
-                    ButtonSegment(
-                      value: ThemeMode.dark,
-                      label: Text(tr(context, zh: '深色', en: 'Dark')),
-                    ),
-                  ],
-                  selected: {appState.themeMode},
-                  onSelectionChanged: (selection) {
-                    appState.setThemeMode(selection.first);
-                  },
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  tr(context, zh: '语言', en: 'Language'),
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 10),
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'zh_CN', label: Text('中文')),
-                    ButtonSegment(value: 'en_US', label: Text('English')),
-                  ],
-                  selected: {
-                    appState.locale.languageCode == 'en' ? 'en_US' : 'zh_CN',
-                  },
-                  onSelectionChanged: (selection) {
-                    final code = selection.first;
-                    if (code == 'en_US') {
-                      appState.setLocale(const Locale('en', 'US'));
-                    } else {
-                      appState.setLocale(const Locale('zh', 'CN'));
-                    }
-                  },
-                ),
-              ],
-            ),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: _presetThemeSeedColors.map((color) {
+                  return _ThemeSeedColorOption(
+                    color: color,
+                    selected:
+                        appState.themeSeedColor.toARGB32() == color.toARGB32(),
+                    onTap: () => appState.setThemeSeedColor(color),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                '${tr(context, zh: '当前', en: 'Current')}: #${appState.themeSeedColor.toARGB32().toRadixString(16).substring(2).toUpperCase()}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 20),
+              Text(
+                tr(context, zh: '语言', en: 'Language'),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 10),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'zh_CN', label: Text('中文')),
+                  ButtonSegment(value: 'en_US', label: Text('English')),
+                ],
+                selected: {
+                  appState.locale.languageCode == 'en' ? 'en_US' : 'zh_CN',
+                },
+                onSelectionChanged: (selection) {
+                  final code = selection.first;
+                  if (code == 'en_US') {
+                    appState.setLocale(const Locale('en', 'US'));
+                  } else {
+                    appState.setLocale(const Locale('zh', 'CN'));
+                  }
+                },
+              ),
+            ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _ThemeSeedColorOption extends StatelessWidget {
+  const _ThemeSeedColorOption({
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = selected
+        ? Theme.of(context).colorScheme.primary
+        : Theme.of(context).colorScheme.outlineVariant;
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: borderColor, width: selected ? 2.4 : 1.2),
+        ),
+        child: selected
+            ? Icon(
+                Icons.check,
+                size: 18,
+                color:
+                    ThemeData.estimateBrightnessForColor(color) ==
+                        Brightness.dark
+                    ? Colors.white
+                    : Colors.black87,
+              )
+            : null,
       ),
     );
   }
