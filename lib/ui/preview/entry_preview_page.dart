@@ -28,6 +28,7 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
   final _previewFocusNode = FocusNode();
   final StorageService _storageService = const StorageService();
   final Map<String, Future<String?>> _resolvedPathCache = {};
+  bool _deleting = false;
 
   @override
   void initState() {
@@ -74,6 +75,46 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
       _previewController.dispose();
       _previewController = nextController;
     });
+  }
+
+  Future<void> _deleteEntry() async {
+    if (_deleting) {
+      return;
+    }
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(tr(context, zh: '确认删除这篇日记？', en: 'Delete this entry?')),
+          content: Text(
+            tr(context, zh: '删除后将参与同步，且无法撤销。', en: 'This cannot be undone.'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(tr(context, zh: '取消', en: 'Cancel')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(tr(context, zh: '删除', en: 'Delete')),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirm != true || !mounted) {
+      return;
+    }
+
+    setState(() => _deleting = true);
+    await context.read<DiaryAppState>().deleteEntry(_entry.id);
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(tr(context, zh: '日记已删除', en: 'Deleted'))),
+    );
+    Navigator.of(context).pop(true);
   }
 
   Future<void> _openAttachment(DiaryAttachment attachment) async {
@@ -264,8 +305,19 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
       appBar: AppBar(
         title: Text(tr(context, zh: '日记预览', en: 'Entry Preview')),
         actions: [
+          IconButton(
+            onPressed: _deleting ? null : _deleteEntry,
+            icon: _deleting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.delete_outline),
+            tooltip: tr(context, zh: '删除', en: 'Delete'),
+          ),
           TextButton(
-            onPressed: _editEntry,
+            onPressed: _deleting ? null : _editEntry,
             child: Text(tr(context, zh: '编辑', en: 'Edit')),
           ),
         ],

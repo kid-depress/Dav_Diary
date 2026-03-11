@@ -135,7 +135,7 @@ class _HomeShellState extends State<HomeShell> {
         label: tr(context, zh: '回顾', en: 'Calendar'),
       ),
       NavigationDestination(
-        icon: const Icon(Icons.settings_outlined),
+        icon: const Icon(Icons.more_horiz),
         label: tr(context, zh: '设置', en: 'Settings'),
       ),
     ];

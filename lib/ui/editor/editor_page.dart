@@ -44,8 +44,6 @@ class _EditorPageState extends State<EditorPage> {
   bool _locating = false;
   List<DiaryAttachment> _attachments = const [];
 
-  bool get _isEditing => widget.initialEntry != null;
-
   @override
   void initState() {
     super.initState();
@@ -445,48 +443,6 @@ class _EditorPageState extends State<EditorPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(tr(context, zh: '日记已保存', en: 'Saved')),
-      ),
-    );
-    Navigator.of(context).pop(true);
-  }
-
-  Future<void> _delete() async {
-    final existing = widget.initialEntry;
-    if (existing == null) {
-      return;
-    }
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(tr(context, zh: '确认删除这篇日记？', en: 'Delete this entry?')),
-          content: Text(
-            tr(context, zh: '删除后将参与同步，且无法撤销。', en: 'This cannot be undone.'),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(tr(context, zh: '取消', en: 'Cancel')),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: Text(tr(context, zh: '删除', en: 'Delete')),
-            ),
-          ],
-        );
-      },
-    );
-    if (confirm != true || !mounted) {
-      return;
-    }
-    await context.read<DiaryAppState>().deleteEntry(existing.id);
-    if (!mounted) {
-      return;
-    }
-    HapticFeedback.mediumImpact();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(tr(context, zh: '日记已删除', en: 'Deleted')),
       ),
     );
     Navigator.of(context).pop(true);
@@ -919,19 +875,12 @@ class _EditorPageState extends State<EditorPage> {
   @override
   Widget build(BuildContext context) {
     final isSaving = _saving;
-    final hasEntry = _isEditing;
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Scaffold(
       appBar: AppBar(
         title: null,
         actions: [
-          if (hasEntry)
-            IconButton(
-              onPressed: isSaving ? null : _delete,
-              icon: const Icon(Icons.delete_outline),
-              tooltip: tr(context, zh: '删除', en: 'Delete'),
-            ),
           TextButton(
             onPressed: isSaving ? null : _save,
             child: isSaving
