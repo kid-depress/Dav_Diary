@@ -105,6 +105,29 @@ class DiaryAppState extends ChangeNotifier {
     _triggerAutoSyncAfterLocalChange();
   }
 
+  Future<List<DiaryEntry>> listDeletedEntries() {
+    return _diaryRepository.listDeleted();
+  }
+
+  Future<void> restoreEntry(String id) async {
+    await _diaryRepository.restore(id);
+    await refreshEntries();
+    _triggerAutoSyncAfterLocalChange();
+  }
+
+  Future<void> deleteEntryForever(String id) async {
+    await _diaryRepository.deleteForever(id);
+    await refreshEntries();
+    await _storageService.cleanupOrphanedMedia(_entries);
+  }
+
+  Future<int> clearDeletedEntries() async {
+    final removed = await _diaryRepository.clearDeleted();
+    await refreshEntries();
+    await _storageService.cleanupOrphanedMedia(_entries);
+    return removed;
+  }
+
   Future<void> setThemeMode(ThemeMode mode) async {
     _themeMode = mode;
     await _settingsRepository.saveThemeMode(mode);

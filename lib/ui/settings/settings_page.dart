@@ -8,6 +8,7 @@ import 'package:diary/data/models/webdav_config.dart';
 import 'package:diary/ui/motion/motion_dialog.dart';
 import 'package:diary/ui/motion/motion_route.dart';
 import 'package:diary/ui/motion/motion_spec.dart';
+import 'package:diary/ui/settings/trash_page.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -94,6 +95,24 @@ class SettingsPage extends StatelessWidget {
                 ),
               ),
             );
+          },
+        ),
+        const Divider(height: 1),
+        ListTile(
+          leading: const Icon(Icons.delete_outline),
+          title: Text(tr(context, zh: '回收站', en: 'Trash')),
+          subtitle: Text(
+            tr(
+              context,
+              zh: '恢复或彻底删除已删除日记',
+              en: 'Restore or permanently delete entries',
+            ),
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            Navigator.of(
+              context,
+            ).push(buildPageTransitionRoute(const TrashPage()));
           },
         ),
         const Divider(height: 1),

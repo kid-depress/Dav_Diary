@@ -113,4 +113,37 @@ class DiaryRepository {
       whereArgs: [id],
     );
   }
+
+  Future<List<DiaryEntry>> listDeleted() async {
+    final db = await _db;
+    final rows = await db.query(
+      'entries',
+      where: 'is_deleted = 1',
+      orderBy: 'updated_at DESC, event_at DESC',
+    );
+    return rows.map(DiaryEntry.fromDbMap).toList();
+  }
+
+  Future<void> restore(String id) async {
+    final db = await _db;
+    await db.update(
+      'entries',
+      <String, Object>{
+        'is_deleted': 0,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> deleteForever(String id) async {
+    final db = await _db;
+    await db.delete('entries', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> clearDeleted() async {
+    final db = await _db;
+    return db.delete('entries', where: 'is_deleted = 1');
+  }
 }
