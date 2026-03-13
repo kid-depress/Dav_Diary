@@ -3,6 +3,7 @@ import 'package:diary/app/i18n.dart';
 import 'package:diary/data/database/app_database.dart';
 import 'package:diary/data/repositories/diary_repository.dart';
 import 'package:diary/data/repositories/settings_repository.dart';
+import 'package:diary/services/daily_quote_service.dart';
 import 'package:diary/services/storage_service.dart';
 import 'package:diary/services/sync_service.dart';
 import 'package:diary/ui/home/home_shell.dart';
@@ -29,11 +30,13 @@ class _DiaryAppBootstrapState extends State<DiaryAppBootstrap> {
     final settingsRepository = SettingsRepository();
     final syncService = SyncService(diaryRepository, settingsRepository);
     final storageService = const StorageService();
+    final dailyQuoteService = const DailyQuoteService();
     _appState = DiaryAppState(
       diaryRepository: diaryRepository,
       settingsRepository: settingsRepository,
       syncService: syncService,
       storageService: storageService,
+      dailyQuoteService: dailyQuoteService,
     );
     _initFuture = _appState.initialize();
   }

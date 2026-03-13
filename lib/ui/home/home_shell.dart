@@ -52,12 +52,16 @@ class _HomeShellState extends State<HomeShell> {
     final result = await showMotionDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(tr(context, zh: '搜索', en: 'Search')),
+        title: Text(tr(context, zh: '\u641C\u7D22', en: 'Search')),
         content: TextField(
           controller: controller,
           autofocus: true,
           decoration: InputDecoration(
-            hintText: tr(context, zh: '搜索标题或内容', en: 'Search title or content'),
+            hintText: tr(
+              context,
+              zh: '\u641C\u7D22\u6807\u9898\u6216\u5185\u5BB9',
+              en: 'Search title or content',
+            ),
             prefixIcon: const Icon(Icons.search),
           ),
           onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
@@ -65,15 +69,15 @@ class _HomeShellState extends State<HomeShell> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text(tr(context, zh: '取消', en: 'Cancel')),
+            child: Text(tr(context, zh: '\u53D6\u6D88', en: 'Cancel')),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(''),
-            child: Text(tr(context, zh: '清除', en: 'Clear')),
+            child: Text(tr(context, zh: '\u6E05\u7A7A', en: 'Clear')),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-            child: Text(tr(context, zh: '确定', en: 'Done')),
+            child: Text(tr(context, zh: '\u5B8C\u6210', en: 'Done')),
           ),
         ],
       ),
@@ -95,10 +99,14 @@ class _HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) {
     final appState = context.watch<DiaryAppState>();
     final titles = [
-      tr(context, zh: '日记', en: 'Diary'),
-      tr(context, zh: '回顾', en: 'Calendar'),
-      tr(context, zh: '设置', en: 'Settings'),
+      tr(context, zh: '\u4E3B\u9875', en: 'Home'),
+      tr(context, zh: '\u65E5\u5386', en: 'Calendar'),
+      tr(context, zh: '\u66F4\u591A', en: 'More'),
     ];
+    final showDailyQuote =
+        _index == 0 &&
+        appState.dailyQuoteEnabled &&
+        appState.dailyQuoteText.trim().isNotEmpty;
     final pages = [
       HomePage(
         onCreate: () => _openEditor(),
@@ -127,15 +135,15 @@ class _HomeShellState extends State<HomeShell> {
     final destinations = [
       NavigationDestination(
         icon: const Icon(Icons.grid_view_rounded),
-        label: tr(context, zh: '首页', en: 'Home'),
+        label: tr(context, zh: '\u4E3B\u9875', en: 'Home'),
       ),
       NavigationDestination(
         icon: const Icon(Icons.calendar_month_outlined),
-        label: tr(context, zh: '回顾', en: 'Calendar'),
+        label: tr(context, zh: '\u65E5\u5386', en: 'Calendar'),
       ),
       NavigationDestination(
         icon: const Icon(Icons.more_horiz),
-        label: tr(context, zh: '设置', en: 'Settings'),
+        label: tr(context, zh: '\u66F4\u591A', en: 'More'),
       ),
     ];
 
@@ -144,11 +152,29 @@ class _HomeShellState extends State<HomeShell> {
         final isTablet = constraints.maxWidth >= _tabletBreakpoint;
         return Scaffold(
           appBar: AppBar(
-            title: Text(titles[_index]),
+            title: showDailyQuote
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(titles[_index]),
+                      const SizedBox(height: 2),
+                      Text(
+                        appState.dailyQuoteText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant
+                              .withValues(alpha: 0.88),
+                        ),
+                      ),
+                    ],
+                  )
+                : Text(titles[_index]),
             actions: _index == 0
                 ? [
                     IconButton(
-                      tooltip: tr(context, zh: '搜索', en: 'Search'),
+                      tooltip: tr(context, zh: '\u641C\u7D22', en: 'Search'),
                       onPressed: _openHomeSearchDialog,
                       icon: Icon(
                         Icons.search,
@@ -159,8 +185,16 @@ class _HomeShellState extends State<HomeShell> {
                     ),
                     IconButton(
                       tooltip: appState.homeLayoutMode == 'timeline'
-                          ? tr(context, zh: '切换到网格', en: 'Switch to grid')
-                          : tr(context, zh: '切换到时间轴', en: 'Switch to timeline'),
+                          ? tr(
+                              context,
+                              zh: '\u5207\u6362\u5230\u7F51\u683C',
+                              en: 'Switch to grid',
+                            )
+                          : tr(
+                              context,
+                              zh: '\u5207\u6362\u5230\u65F6\u95F4\u8F74',
+                              en: 'Switch to timeline',
+                            ),
                       onPressed: _toggleHomeLayoutMode,
                       icon: Icon(
                         appState.homeLayoutMode == 'timeline'

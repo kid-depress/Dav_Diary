@@ -4,6 +4,13 @@ import 'package:diary/data/models/webdav_config.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+class DailyQuoteCache {
+  const DailyQuoteCache({required this.text, required this.dayStartEpochMs});
+
+  final String text;
+  final int dayStartEpochMs;
+}
+
 class SettingsRepository {
   static const _keyThemeMode = 'theme_mode';
   static const _keyThemeSeedColor = 'theme_seed_color';
@@ -11,6 +18,9 @@ class SettingsRepository {
   static const _keyWebDavConfig = 'webdav_config';
   static const _keyLastSyncAt = 'last_sync_at';
   static const _keyHomeLayoutMode = 'home_layout_mode';
+  static const _keyEnableDailyQuote = 'enable_daily_quote';
+  static const _keyDailyQuoteText = 'daily_quote_text';
+  static const _keyDailyQuoteDay = 'daily_quote_day';
 
   Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
 
@@ -111,5 +121,34 @@ class SettingsRepository {
     final normalized = mode == 'timeline' ? 'timeline' : 'grid';
     final prefs = await _prefs;
     await prefs.setString(_keyHomeLayoutMode, normalized);
+  }
+
+  Future<bool> loadEnableDailyQuote() async {
+    final prefs = await _prefs;
+    return prefs.getBool(_keyEnableDailyQuote) ?? true;
+  }
+
+  Future<void> saveEnableDailyQuote(bool enabled) async {
+    final prefs = await _prefs;
+    await prefs.setBool(_keyEnableDailyQuote, enabled);
+  }
+
+  Future<DailyQuoteCache?> loadDailyQuoteCache() async {
+    final prefs = await _prefs;
+    final text = (prefs.getString(_keyDailyQuoteText) ?? '').trim();
+    final day = prefs.getInt(_keyDailyQuoteDay);
+    if (text.isEmpty || day == null) {
+      return null;
+    }
+    return DailyQuoteCache(text: text, dayStartEpochMs: day);
+  }
+
+  Future<void> saveDailyQuoteCache({
+    required String text,
+    required int dayStartEpochMs,
+  }) async {
+    final prefs = await _prefs;
+    await prefs.setString(_keyDailyQuoteText, text.trim());
+    await prefs.setInt(_keyDailyQuoteDay, dayStartEpochMs);
   }
 }

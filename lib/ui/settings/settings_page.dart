@@ -722,6 +722,24 @@ class AppearanceSettingsPage extends StatelessWidget {
                   }
                 },
               ),
+              const SizedBox(height: 20),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  tr(context, zh: '启用每日一言', en: 'Enable Daily Quote'),
+                ),
+                subtitle: Text(
+                  tr(
+                    context,
+                    zh: '允许应用每天联网获取一条短句。',
+                    en: 'Allow one network request per day to fetch a short quote.',
+                  ),
+                ),
+                value: appState.dailyQuoteEnabled,
+                onChanged: (value) {
+                  appState.setDailyQuoteEnabled(value);
+                },
+              ),
             ],
           );
         },

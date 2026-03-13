@@ -1,10 +1,11 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io';
 
 import 'package:diary/data/models/diary_entry.dart';
 import 'package:diary/data/models/webdav_config.dart';
 import 'package:diary/data/repositories/diary_repository.dart';
 import 'package:diary/data/repositories/settings_repository.dart';
+import 'package:diary/services/daily_quote_service.dart';
 import 'package:diary/services/storage_service.dart';
 import 'package:diary/services/sync_service.dart';
 import 'package:flutter/material.dart';
@@ -15,15 +16,18 @@ class DiaryAppState extends ChangeNotifier {
     required SettingsRepository settingsRepository,
     required SyncService syncService,
     required StorageService storageService,
+    required DailyQuoteService dailyQuoteService,
   }) : _diaryRepository = diaryRepository,
        _settingsRepository = settingsRepository,
        _syncService = syncService,
-       _storageService = storageService;
+       _storageService = storageService,
+       _dailyQuoteService = dailyQuoteService;
 
   final DiaryRepository _diaryRepository;
   final SettingsRepository _settingsRepository;
   final SyncService _syncService;
   final StorageService _storageService;
+  final DailyQuoteService _dailyQuoteService;
 
   bool _loading = true;
   bool _syncing = false;
@@ -34,6 +38,9 @@ class DiaryAppState extends ChangeNotifier {
   WebDavConfig _webDavConfig = const WebDavConfig();
   List<DiaryEntry> _entries = const [];
   String _homeLayoutMode = 'grid';
+  bool _dailyQuoteEnabled = true;
+  String _dailyQuoteText = '';
+  int? _dailyQuoteDayStartEpochMs;
 
   bool get loading => _loading;
   bool get syncing => _syncing;
@@ -44,6 +51,8 @@ class DiaryAppState extends ChangeNotifier {
   WebDavConfig get webDavConfig => _webDavConfig;
   List<DiaryEntry> get entries => _entries;
   String get homeLayoutMode => _homeLayoutMode;
+  bool get dailyQuoteEnabled => _dailyQuoteEnabled;
+  String get dailyQuoteText => _dailyQuoteText;
 
   Future<void> initialize() async {
     _themeMode = await _settingsRepository.loadThemeMode();
@@ -52,7 +61,12 @@ class DiaryAppState extends ChangeNotifier {
     _webDavConfig = await _settingsRepository.loadWebDavConfig();
     _lastSyncAt = await _settingsRepository.loadLastSyncAt();
     _homeLayoutMode = await _settingsRepository.loadHomeLayoutMode();
+    _dailyQuoteEnabled = await _settingsRepository.loadEnableDailyQuote();
+    final quoteCache = await _settingsRepository.loadDailyQuoteCache();
+    _dailyQuoteText = quoteCache?.text ?? '';
+    _dailyQuoteDayStartEpochMs = quoteCache?.dayStartEpochMs;
     await refreshEntries();
+    await refreshDailyQuoteIfNeeded();
 
     if (_webDavConfig.isConfigured) {
       _syncing = true;
@@ -159,6 +173,49 @@ class DiaryAppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setDailyQuoteEnabled(bool enabled) async {
+    if (_dailyQuoteEnabled == enabled) {
+      return;
+    }
+    _dailyQuoteEnabled = enabled;
+    await _settingsRepository.saveEnableDailyQuote(enabled);
+    if (_dailyQuoteEnabled) {
+      await refreshDailyQuoteIfNeeded();
+    } else {
+      notifyListeners();
+    }
+  }
+
+  Future<void> refreshDailyQuoteIfNeeded() async {
+    if (!_dailyQuoteEnabled) {
+      return;
+    }
+    final todayStartEpochMs = _dayStartEpochMs(DateTime.now());
+    if (_dailyQuoteText.trim().isNotEmpty &&
+        _dailyQuoteDayStartEpochMs == todayStartEpochMs) {
+      return;
+    }
+    try {
+      final quote = await _dailyQuoteService.fetchQuote();
+      _dailyQuoteText = quote;
+      _dailyQuoteDayStartEpochMs = todayStartEpochMs;
+      await _settingsRepository.saveDailyQuoteCache(
+        text: _dailyQuoteText,
+        dayStartEpochMs: todayStartEpochMs,
+      );
+    } catch (_) {
+      if (_dailyQuoteText.trim().isEmpty) {
+        _dailyQuoteText = _fallbackQuoteByLocale();
+      }
+      _dailyQuoteDayStartEpochMs = todayStartEpochMs;
+      await _settingsRepository.saveDailyQuoteCache(
+        text: _dailyQuoteText,
+        dayStartEpochMs: todayStartEpochMs,
+      );
+    }
+    notifyListeners();
+  }
+
   Future<void> updateWebDavConfig(WebDavConfig config) async {
     _webDavConfig = config;
     await _settingsRepository.saveWebDavConfig(config);
@@ -255,5 +312,16 @@ class DiaryAppState extends ChangeNotifier {
       await refreshEntries();
     }
     return removed;
+  }
+
+  int _dayStartEpochMs(DateTime dateTime) {
+    final day = DateTime(dateTime.year, dateTime.month, dateTime.day);
+    return day.millisecondsSinceEpoch;
+  }
+
+  String _fallbackQuoteByLocale() {
+    return _locale.languageCode.toLowerCase() == 'zh'
+        ? '\u4ECA\u5929\u4E5F\u503C\u5F97\u8BA4\u771F\u8BB0\u5F55\u3002'
+        : 'Today is still worth writing down.';
   }
 }
