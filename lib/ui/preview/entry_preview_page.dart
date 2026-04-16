@@ -9,6 +9,7 @@ import 'package:diary/ui/editor/editor_page.dart';
 import 'package:diary/ui/motion/motion_dialog.dart';
 import 'package:diary/ui/motion/motion_route.dart';
 import 'package:diary/ui/preview/attachment_preview_page.dart';
+import 'package:diary/ui/widgets/entry_meta_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:intl/intl.dart';
@@ -355,29 +356,29 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
                     ),
                     child: Text(tr(context, zh: '无附件', en: 'No attachments')),
                   );
+            final moodMeta = parseMoodMeta(_entry.mood);
+            final weatherMeta = parseWeatherMeta(_entry.weather);
 
             final metadataSection = Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                if (_entry.mood.trim().isNotEmpty)
+                if (moodMeta.hasValue)
                   Chip(
+                    avatar: Icon(moodMeta.icon, size: 18),
                     label: Text(
-                      tr(
-                        context,
-                        zh: '心情 ${_entry.mood}',
-                        en: 'Mood ${_entry.mood}',
-                      ),
+                      moodMeta.notes.isEmpty
+                          ? tr(context, zh: '心情', en: 'Mood')
+                          : moodMeta.notes,
                     ),
                   ),
-                if (_entry.weather.trim().isNotEmpty)
+                if (weatherMeta.hasValue)
                   Chip(
+                    avatar: Icon(weatherMeta.icon, size: 18),
                     label: Text(
-                      tr(
-                        context,
-                        zh: '天气 ${_entry.weather}',
-                        en: 'Weather ${_entry.weather}',
-                      ),
+                      weatherMeta.notes.isEmpty
+                          ? tr(context, zh: '天气', en: 'Weather')
+                          : weatherMeta.notes,
                     ),
                   ),
                 Chip(

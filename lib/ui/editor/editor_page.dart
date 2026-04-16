@@ -17,6 +17,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -32,6 +33,22 @@ class EditorPage extends StatefulWidget {
 class _EditorPageState extends State<EditorPage> {
   static const _moodOptions = ['🙂', '😄', '🥰', '😌', '😐', '😞'];
   static const _weatherOptions = ['☀️', '🌤️', '⛅', '🌧️', '❄️', '🌫️'];
+  static const _moodIconMap = <String, IconData>{
+    '🙂': LucideIcons.smile,
+    '😄': LucideIcons.laugh,
+    '🥰': LucideIcons.heart,
+    '😌': LucideIcons.sparkles,
+    '😐': LucideIcons.meh,
+    '😞': LucideIcons.frown,
+  };
+  static const _weatherIconMap = <String, IconData>{
+    '☀️': LucideIcons.sun,
+    '🌤️': LucideIcons.cloudSun,
+    '⛅': LucideIcons.cloudy,
+    '🌧️': LucideIcons.cloudRain,
+    '❄️': LucideIcons.cloudSnow,
+    '🌫️': LucideIcons.cloudFog,
+  };
 
   final _moodDescController = TextEditingController();
   final _weatherDescController = TextEditingController();
@@ -104,6 +121,11 @@ class _EditorPageState extends State<EditorPage> {
     }
     return ('', trimmed);
   }
+
+  IconData _moodIcon(String value) => _moodIconMap[value] ?? LucideIcons.smile;
+
+  IconData _weatherIcon(String value) =>
+      _weatherIconMap[value] ?? LucideIcons.cloud;
 
   String _joinMeta(String icon, String desc) {
     final symbol = icon.trim();
@@ -486,7 +508,7 @@ class _EditorPageState extends State<EditorPage> {
                     children: [
                       for (final mood in _moodOptions)
                         ChoiceChip(
-                          label: Text(mood),
+                          label: Icon(_moodIcon(mood), size: 18),
                           selected: selectedMood == mood,
                           onSelected: (_) =>
                               modalSetState(() => selectedMood = mood),
@@ -566,7 +588,7 @@ class _EditorPageState extends State<EditorPage> {
                     children: [
                       for (final weather in _weatherOptions)
                         ChoiceChip(
-                          label: Text(weather),
+                          label: Icon(_weatherIcon(weather), size: 18),
                           selected: selectedWeather == weather,
                           onSelected: (_) =>
                               modalSetState(() => selectedWeather = weather),
@@ -644,9 +666,12 @@ class _EditorPageState extends State<EditorPage> {
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: FilterChip(
-              avatar: _selectedMood.isEmpty
-                  ? const Icon(Icons.mood_outlined, size: 18)
-                  : Text(_selectedMood),
+              avatar: Icon(
+                _selectedMood.isEmpty
+                    ? LucideIcons.smile
+                    : _moodIcon(_selectedMood),
+                size: 18,
+              ),
               label: Text(
                 _moodDescController.text.trim().isEmpty
                     ? tr(context, zh: '心情', en: 'Mood')
@@ -660,9 +685,12 @@ class _EditorPageState extends State<EditorPage> {
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: FilterChip(
-              avatar: _selectedWeather.isEmpty
-                  ? const Icon(Icons.cloud_outlined, size: 18)
-                  : Text(_selectedWeather),
+              avatar: Icon(
+                _selectedWeather.isEmpty
+                    ? LucideIcons.cloudSun
+                    : _weatherIcon(_selectedWeather),
+                size: 18,
+              ),
               label: Text(
                 _weatherDescController.text.trim().isEmpty
                     ? tr(context, zh: '天气', en: 'Weather')

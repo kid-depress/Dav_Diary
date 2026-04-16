@@ -4,6 +4,7 @@ import 'package:diary/app/app_state.dart';
 import 'package:diary/app/i18n.dart';
 import 'package:diary/data/models/diary_entry.dart';
 import 'package:diary/ui/motion/motion_spec.dart';
+import 'package:diary/ui/widgets/entry_meta_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
@@ -310,6 +311,9 @@ class _TimelineEntryCard extends StatelessWidget {
     final hasImage = imagePath != null && imagePath.isNotEmpty;
     final summary = entry.summary;
     final hasBodyText = summary.isNotEmpty;
+    final hasMeta =
+        parseMoodMeta(entry.mood).hasValue ||
+        parseWeatherMeta(entry.weather).hasValue;
 
     return Card(
       color: Theme.of(context).colorScheme.surfaceContainerLow,
@@ -346,6 +350,10 @@ class _TimelineEntryCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
+                    const SizedBox(height: 8),
+                  ],
+                  if (hasMeta) ...[
+                    _EntryMetaWrap(entry: entry),
                     const SizedBox(height: 8),
                   ],
                   Text(
@@ -395,10 +403,9 @@ class _MasonryEntryCard extends StatelessWidget {
     final summary = entry.summary;
     final hasBodyText = summary.isNotEmpty;
     final lineCount = hasBodyText ? _textLineCount(summary) : 0;
-    final metaText = [
-      entry.mood.trim(),
-      entry.weather.trim(),
-    ].where((value) => value.isNotEmpty).join('  ');
+    final hasMeta =
+        parseMoodMeta(entry.mood).hasValue ||
+        parseWeatherMeta(entry.weather).hasValue;
 
     return Card(
       color: Theme.of(context).colorScheme.surfaceContainerLow,
@@ -422,20 +429,6 @@ class _MasonryEntryCard extends StatelessWidget {
                     child: const Icon(Icons.broken_image_outlined),
                   ),
                 ),
-              )
-            else if (metaText.isNotEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-                color: Theme.of(
-                  context,
-                ).colorScheme.secondaryContainer.withValues(alpha: 0.55),
-                child: Text(
-                  metaText,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
               ),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
@@ -450,6 +443,10 @@ class _MasonryEntryCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
+                  if (hasMeta) ...[
+                    if (hasBodyText) const SizedBox(height: 8),
+                    _EntryMetaWrap(entry: entry),
+                  ],
                   if (entry.location.trim().isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Text(
@@ -469,6 +466,63 @@ class _MasonryEntryCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _EntryMetaWrap extends StatelessWidget {
+  const _EntryMetaWrap({required this.entry});
+
+  final DiaryEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final mood = parseMoodMeta(entry.mood);
+    final weather = parseWeatherMeta(entry.weather);
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        if (mood.hasValue)
+          _EntryMetaTag(
+            icon: mood.icon,
+            tooltip: mood.notes.isEmpty
+                ? tr(context, zh: '心情', en: 'Mood')
+                : mood.notes,
+          ),
+        if (weather.hasValue)
+          _EntryMetaTag(
+            icon: weather.icon,
+            tooltip: weather.notes.isEmpty
+                ? tr(context, zh: '天气', en: 'Weather')
+                : weather.notes,
+          ),
+      ],
+    );
+  }
+}
+
+class _EntryMetaTag extends StatelessWidget {
+  const _EntryMetaTag({required this.icon, required this.tooltip});
+
+  final IconData icon;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        width: 24,
+        height: 24,
+        decoration: BoxDecoration(
+          color: colors.secondaryContainer.withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        alignment: Alignment.center,
+        child: Icon(icon, size: 14, color: colors.onSecondaryContainer),
       ),
     );
   }
