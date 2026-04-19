@@ -8,11 +8,12 @@
 
 <div style="text-align: center;">
   <div style="display: inline-flex; gap: 20px;">
-    <img src="assets/images/example1.jpg" alt="用户登录界面" width="27%" />
-    <img src="assets/images/example2.jpg" alt="用户仪表盘界面" width="27%" />
-      <img src="assets/images/example3.jpg" alt="用户仪表盘界面" width="27%" />
+    <img src="assets/images/example4.jpg" alt="用户登录界面" width="27%" />
+    <img src="assets/images/example5.jpg" alt="用户仪表盘界面" width="27%" />
+      <img src="assets/images/example6.jpg" alt="用户仪表盘界面" width="27%" />
   </div>
 </div>
+
 
 ## ☁️使用教程
 
