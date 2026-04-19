@@ -86,24 +86,26 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
     }
     final confirm = await showMotionDialog<bool>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(tr(context, zh: '确认删除这篇日记？', en: 'Delete this entry?')),
-          content: Text(
-            tr(context, zh: '删除后将参与同步，且无法撤销。', en: 'This cannot be undone.'),
+      builder: (context) => AlertDialog(
+        title: Text(tr(context, zh: '确认删除这篇日记？', en: 'Delete this entry?')),
+        content: Text(
+          tr(
+            context,
+            zh: '删除后将进入回收站。',
+            en: 'The entry will be moved to trash.',
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(tr(context, zh: '取消', en: 'Cancel')),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: Text(tr(context, zh: '删除', en: 'Delete')),
-            ),
-          ],
-        );
-      },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(tr(context, zh: '鍙栨秷', en: 'Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(tr(context, zh: '鍒犻櫎', en: 'Delete')),
+          ),
+        ],
+      ),
     );
     if (confirm != true || !mounted) {
       return;
@@ -125,7 +127,15 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
   Future<void> _openAttachment(DiaryAttachment attachment) async {
     if (!attachment.isVisualImage && !attachment.isVideo) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('This attachment type is not supported')),
+        SnackBar(
+          content: Text(
+            tr(
+              context,
+              zh: '当前附件类型不支持预览',
+              en: 'This attachment type is not supported',
+            ),
+          ),
+        ),
       );
       return;
     }
@@ -136,7 +146,11 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
     final resolvedPath = resolvedAttachment?.path ?? '';
     if (resolvedPath.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Attachment file is missing')),
+        SnackBar(
+          content: Text(
+            tr(context, zh: '附件文件不存在', en: 'Attachment file is missing'),
+          ),
+        ),
       );
       return;
     }
@@ -211,9 +225,9 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
     if (attachment.isVisualImage) {
       return InkWell(
         onTap: () => _openAttachment(attachment),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           child: SizedBox(
             width: size,
             height: size,
@@ -242,11 +256,11 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
                             _buildBrokenAttachment(size: size),
                       ),
                     Positioned(
-                      right: 6,
-                      bottom: 6,
+                      right: 8,
+                      bottom: 8,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          color: Colors.black45,
+                          color: Colors.black.withValues(alpha: 0.45),
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: const Padding(
@@ -269,7 +283,7 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
     }
     return InkWell(
       onTap: () => _openAttachment(attachment),
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: SizedBox(
         width: size,
         height: size,
@@ -281,7 +295,7 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
               width: size,
               height: size,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
               ),
               child: Icon(
@@ -304,10 +318,11 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
     final locationText = _entry.location.trim().isEmpty
         ? tr(context, zh: '未设置', en: 'Not set')
         : _entry.location;
+    final colors = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(tr(context, zh: '日记预览', en: 'Entry Preview')),
+        title: Text(tr(context, zh: '鏃ヨ璇︽儏', en: 'Entry Details')),
         actions: [
           IconButton(
             onPressed: _deleting ? null : _deleteEntry,
@@ -318,11 +333,11 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.delete_outline),
-            tooltip: tr(context, zh: '删除', en: 'Delete'),
+            tooltip: tr(context, zh: '鍒犻櫎', en: 'Delete'),
           ),
           TextButton(
             onPressed: _deleting ? null : _editEntry,
-            child: Text(tr(context, zh: '编辑', en: 'Edit')),
+            child: Text(tr(context, zh: '缂栬緫', en: 'Edit')),
           ),
         ],
       ),
@@ -330,32 +345,38 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final isTablet = constraints.maxWidth >= 900;
-            final attachmentSize = isTablet ? 150.0 : 120.0;
-            final attachmentsSection = _entry.attachments.isNotEmpty
-                ? SizedBox(
-                    height: attachmentSize + 8,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemBuilder: (context, index) => _buildAttachment(
-                        _entry.attachments[index],
-                        size: attachmentSize,
+            final attachmentSize = isTablet ? 150.0 : 126.0;
+            final attachmentsSection = Card(
+              color: colors.surfaceContainerLow,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                child: _entry.attachments.isNotEmpty
+                    ? SizedBox(
+                        height: attachmentSize + 8,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemBuilder: (context, index) => _buildAttachment(
+                            _entry.attachments[index],
+                            size: attachmentSize,
+                          ),
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(width: 8),
+                          itemCount: _entry.attachments.length,
+                        ),
+                      )
+                    : Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          color: colors.surfaceContainerLowest,
+                        ),
+                        child: Text(
+                          tr(context, zh: '鏆傛棤闄勪欢', en: 'No attachments'),
+                        ),
                       ),
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(width: 8),
-                      itemCount: _entry.attachments.length,
-                    ),
-                  )
-                : Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.surfaceContainerLowest,
-                    ),
-                    child: Text(tr(context, zh: '无附件', en: 'No attachments')),
-                  );
+              ),
+            );
             final moodMeta = parseMoodMeta(_entry.mood);
             final weatherMeta = parseWeatherMeta(_entry.weather);
 
@@ -368,7 +389,7 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
                     avatar: Icon(moodMeta.icon, size: 18),
                     label: Text(
                       moodMeta.notes.isEmpty
-                          ? tr(context, zh: '心情', en: 'Mood')
+                          ? tr(context, zh: '蹇冩儏', en: 'Mood')
                           : moodMeta.notes,
                     ),
                   ),
@@ -377,20 +398,20 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
                     avatar: Icon(weatherMeta.icon, size: 18),
                     label: Text(
                       weatherMeta.notes.isEmpty
-                          ? tr(context, zh: '天气', en: 'Weather')
+                          ? tr(context, zh: '澶╂皵', en: 'Weather')
                           : weatherMeta.notes,
                     ),
                   ),
                 Chip(
                   label: Text(
-                    tr(context, zh: '时间 $dateText', en: 'Time $dateText'),
+                    tr(context, zh: '鏃堕棿 $dateText', en: 'Time $dateText'),
                   ),
                 ),
                 Chip(
                   label: Text(
                     tr(
                       context,
-                      zh: '位置 $locationText',
+                      zh: '浣嶇疆 $locationText',
                       en: 'Location $locationText',
                     ),
                   ),
@@ -398,36 +419,30 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
               ],
             );
 
-            final contentSection = Container(
-              width: double.infinity,
-              constraints: const BoxConstraints(minHeight: 120),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: Theme.of(context).colorScheme.surfaceContainerLowest,
+            final contentSection = Card(
+              child: Container(
+                width: double.infinity,
+                constraints: const BoxConstraints(minHeight: 180),
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                child: QuillEditor.basic(
+                  controller: _previewController,
+                  focusNode: _previewFocusNode,
+                  scrollController: _previewScrollController,
+                  config: const QuillEditorConfig(
+                    showCursor: false,
+                    padding: EdgeInsets.all(4),
+                  ),
+                ),
               ),
-              child: _entry.plainText.trim().isEmpty
-                  ? Text(
-                      tr(context, zh: '（无正文）', en: '(No text)'),
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    )
-                  : QuillEditor.basic(
-                      controller: _previewController,
-                      focusNode: _previewFocusNode,
-                      scrollController: _previewScrollController,
-                      config: const QuillEditorConfig(
-                        showCursor: false,
-                        padding: EdgeInsets.all(4),
-                      ),
-                    ),
             );
+            final hasBodyText = _entry.plainText.trim().isNotEmpty;
 
             return Align(
               alignment: Alignment.topCenter,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 1100),
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 20),
                   child: isTablet
                       ? Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -443,8 +458,10 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
                                 ],
                               ),
                             ),
-                            const SizedBox(width: 14),
-                            Expanded(flex: 6, child: contentSection),
+                            if (hasBodyText) ...[
+                              const SizedBox(width: 14),
+                              Expanded(flex: 6, child: contentSection),
+                            ],
                           ],
                         )
                       : Column(
@@ -453,8 +470,10 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
                             attachmentsSection,
                             const SizedBox(height: 14),
                             metadataSection,
-                            const SizedBox(height: 14),
-                            contentSection,
+                            if (hasBodyText) ...[
+                              const SizedBox(height: 14),
+                              contentSection,
+                            ],
                           ],
                         ),
                 ),

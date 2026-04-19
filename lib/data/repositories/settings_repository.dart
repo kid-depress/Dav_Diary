@@ -111,15 +111,18 @@ class SettingsRepository {
   Future<String> loadHomeLayoutMode() async {
     final prefs = await _prefs;
     final value = (prefs.getString(_keyHomeLayoutMode) ?? '').trim();
-    if (value == 'timeline' || value == 'grid') {
+    if (value == 'grid' || value == 'masonry') {
       return value;
+    }
+    if (value == 'timeline') {
+      return 'masonry';
     }
     // Default for first install: grid view.
     return 'grid';
   }
 
   Future<void> saveHomeLayoutMode(String mode) async {
-    final normalized = mode == 'timeline' ? 'timeline' : 'grid';
+    final normalized = mode == 'masonry' ? 'masonry' : 'grid';
     final prefs = await _prefs;
     await prefs.setString(_keyHomeLayoutMode, normalized);
   }

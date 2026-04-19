@@ -1,13 +1,8 @@
-import 'dart:math' as math;
-import 'dart:ui' as ui;
-
 import 'package:diary/app/app_state.dart';
 import 'package:diary/app/i18n.dart';
-import 'package:diary/data/models/diary_entry.dart';
 import 'package:diary/data/models/webdav_config.dart';
 import 'package:diary/ui/motion/motion_dialog.dart';
 import 'package:diary/ui/motion/motion_route.dart';
-import 'package:diary/ui/motion/motion_spec.dart';
 import 'package:diary/ui/settings/trash_page.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -20,143 +15,136 @@ class SettingsPage extends StatelessWidget {
   Future<void> _openLink(BuildContext context, String url) async {
     final uri = Uri.parse(url);
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!context.mounted) {
+    if (!context.mounted || ok) {
       return;
     }
-    if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(tr(context, zh: '无法打开链接', en: 'Cannot open link')),
-        ),
-      );
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(tr(context, zh: '无法打开链接', en: 'Cannot open link')),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 118),
       children: [
-        const _MoodTrendCard(),
-        const SizedBox(height: 10),
-        ListTile(
-          leading: const Icon(Icons.cleaning_services_outlined),
-          title: Text(tr(context, zh: '清理附件缓存', en: 'Clear Attachment Cache')),
-          subtitle: Text(
-            tr(
-              context,
-              zh: '删除本地已同步附件，需要时会从 WebDAV 重新拉取',
-              en: 'Delete synced local files and re-download from WebDAV when needed',
-            ),
+        Text(
+          tr(context, zh: '配置', en: 'Configuration'),
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            color: colors.tertiary,
+            letterSpacing: 1.1,
+            fontWeight: FontWeight.w700,
           ),
-          onTap: () async {
-            final confirmed = await showMotionDialog<bool>(
-              context: context,
-              builder: (context) {
-                return AlertDialog(
-                  title: Text(tr(context, zh: '清理缓存', en: 'Clear Cache')),
-                  content: Text(
-                    tr(
-                      context,
-                      zh: '将删除本地已同步附件的原图文件，缩略图会保留。是否继续？',
-                      en: 'Original synced files will be removed and thumbnails kept. Continue?',
-                    ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(false),
-                      child: Text(tr(context, zh: '取消', en: 'Cancel')),
-                    ),
-                    FilledButton(
-                      onPressed: () => Navigator.of(context).pop(true),
-                      child: Text(tr(context, zh: '清理', en: 'Clear')),
-                    ),
-                  ],
-                );
-              },
-            );
-            if (confirmed != true || !context.mounted) {
-              return;
-            }
-            final removed = await context
-                .read<DiaryAppState>()
-                .clearSyncedAttachmentCache();
-            if (!context.mounted) {
-              return;
-            }
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  tr(
-                    context,
-                    zh: '已清理 $removed 个附件缓存文件',
-                    en: 'Cleared $removed cached attachment files',
-                  ),
-                ),
-              ),
-            );
-          },
         ),
-        const Divider(height: 1),
-        ListTile(
-          leading: const Icon(Icons.delete_outline),
-          title: Text(tr(context, zh: '回收站', en: 'Trash')),
-          subtitle: Text(
-            tr(
-              context,
-              zh: '恢复或彻底删除已删除日记',
-              en: 'Restore or permanently delete entries',
-            ),
+        const SizedBox(height: 4),
+        Text(
+          tr(context, zh: '设置', en: 'Settings'),
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            height: 1.15,
           ),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () {
-            Navigator.of(
-              context,
-            ).push(buildPageTransitionRoute(const TrashPage()));
-          },
         ),
-        const Divider(height: 1),
-        ListTile(
-          leading: const Icon(Icons.cloud_outlined),
-          title: Text(tr(context, zh: 'WebDAV 设置', en: 'WebDAV')),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () {
-            Navigator.of(
-              context,
-            ).push(buildPageTransitionRoute(const WebDavSettingsPage()));
-          },
-        ),
-        const Divider(height: 1),
-        ListTile(
-          leading: const Icon(Icons.palette_outlined),
-          title: Text(tr(context, zh: '外观', en: 'Appearance')),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () {
-            Navigator.of(
-              context,
-            ).push(buildPageTransitionRoute(const AppearanceSettingsPage()));
-          },
-        ),
-        const Divider(height: 1),
-        ListTile(
-          leading: const Icon(Icons.info_outline),
-          title: Text(tr(context, zh: '关于项目', en: 'About Project')),
-          subtitle: Text(
-            tr(context, zh: '打开 GitHub 项目主页', en: 'Open GitHub project page'),
-          ),
-          trailing: const Icon(Icons.open_in_new),
-          onTap: () =>
-              _openLink(context, 'https://github.com/kid-depress/Dav_Diary'),
-        ),
-        const Divider(height: 1),
-        ListTile(
-          leading: const Icon(Icons.support_agent),
-          title: Text(tr(context, zh: '联系作者', en: 'Contact Author')),
-          subtitle: Text(tr(context, zh: '加入交流群', en: 'Join Group')),
-          trailing: const Icon(Icons.open_in_new),
-          onTap: () => _openLink(
+        const SizedBox(height: 8),
+        Text(
+          tr(
             context,
-            'https://qun.qq.com/universal-share/share?ac=1&authKey=OwDtxNxyG47DX3WMUDnu91lAyFdkzIU613RHHxCVWrAs2iL15plLPUnpyj95SfjM&busi_data=eyJncm91cENvZGUiOiIxMDkxMTI1NDk1IiwidG9rZW4iOiJjMmM1d2FVMzNOd0NyaXVEeThGR2NjZFdNMVhZKzRpbzlhZ3krQS9lWWY2MzFnOUlGa1plRFErUHVwNW9NUUZ0IiwidWluIjoiMzQ2ODk0MzM2NyJ9&data=pg995AanOfOHor1w9a0u6DhsRI9j991Z3W8kmfoPzum9XTgpaJlgnyU8gCjJ2y-TP6KEkaKxRh1VkEECMt7Hug&svctype=4&tempid=h5_group_info',
+            zh: '自定义外观、同步和隐私偏好。',
+            en: 'Personalize appearance, sync and privacy preferences.',
+          ),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: colors.onSurfaceVariant,
+            height: 1.45,
+          ),
+        ),
+        const SizedBox(height: 16),
+        const _SettingsGroup(
+          titleZh: '数据',
+          titleEn: 'Data',
+          children: [_ClearCacheTile(), _TrashTile(), _WebDavTile()],
+        ),
+        const SizedBox(height: 16),
+        const _SettingsGroup(
+          titleZh: '外观',
+          titleEn: 'Appearance',
+          children: [_AppearanceTile()],
+        ),
+        const SizedBox(height: 16),
+        _SettingsGroup(
+          titleZh: '关于',
+          titleEn: 'About',
+          children: [
+            _SettingsActionTile(
+              icon: Icons.info_outline,
+              title: tr(context, zh: '项目主页', en: 'Project Page'),
+              subtitle: tr(
+                context,
+                zh: '在 GitHub 上查看源代码',
+                en: 'Open project repository on GitHub',
+              ),
+              trailing: const Icon(Icons.open_in_new, size: 18),
+              onTap: () => _openLink(
+                context,
+                'https://github.com/kid-depress/Dav_Diary',
+              ),
+            ),
+            _SettingsActionTile(
+              icon: Icons.support_agent_outlined,
+              title: tr(context, zh: '联系作者', en: 'Contact Author'),
+              subtitle: tr(
+                context,
+                zh: '反馈建议与问题',
+                en: 'Feedback and suggestions',
+              ),
+              trailing: const Icon(Icons.open_in_new, size: 18),
+              onTap: () => _openLink(
+                context,
+                'https://qun.qq.com/universal-share/share?ac=1&authKey=OwDtxNxyG47DX3WMUDnu91lAyFdkzIU613RHHxCVWrAs2iL15plLPUnpyj95SfjM&busi_data=eyJncm91cENvZGUiOiIxMDkxMTI1NDk1IiwidG9rZW4iOiJjMmM1d2FVMzNOd0NyaXVEeThGR2NjZFdNMVhZKzRpbzlhZ3krQS9lWWY2MzFnOUlGa1plRFErUHVwNW9NUUZ0IiwidWluIjoiMzQ2ODk0MzM2NyJ9&data=pg995AanOfOHor1w9a0u6DhsRI9j991Z3W8kmfoPzum9XTgpaJlgnyU8gCjJ2y-TP6KEkaKxRh1VkEECMt7Hug&svctype=4&tempid=h5_group_info',
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _SettingsGroup extends StatelessWidget {
+  const _SettingsGroup({
+    required this.titleZh,
+    required this.titleEn,
+    required this.children,
+  });
+
+  final String titleZh;
+  final String titleEn;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          tr(context, zh: titleZh, en: titleEn),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 10),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Column(
+              children: [
+                for (var i = 0; i < children.length; i++) ...[
+                  children[i],
+                  if (i != children.length - 1) const SizedBox(height: 6),
+                ],
+              ],
+            ),
           ),
         ),
       ],
@@ -164,451 +152,202 @@ class SettingsPage extends StatelessWidget {
   }
 }
 
-class _MoodTrendCard extends StatefulWidget {
-  const _MoodTrendCard();
+class _SettingsActionTile extends StatelessWidget {
+  const _SettingsActionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.trailing,
+  });
 
-  @override
-  State<_MoodTrendCard> createState() => _MoodTrendCardState();
-}
-
-class _MoodTrendCardState extends State<_MoodTrendCard> {
-  bool _showLineChart = true;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
-    final entries = context.watch<DiaryAppState>().entries;
-    final points = _buildMoodTrendPoints(entries, windowDays: 180);
-    final hasData = points.length >= 2;
-    final average = hasData
-        ? points.map((point) => point.score).reduce((a, b) => a + b) /
-              points.length
-        : 0.0;
-    final latest = hasData ? points.last.score : 0.0;
-    final previous = hasData ? points[points.length - 2].score : 0.0;
-    final delta = latest - previous;
-
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.insights_outlined,
-                  color: Theme.of(context).colorScheme.primary,
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      color: colors.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: colors.surfaceContainerHighest,
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    tr(context, zh: '心情趋势', en: 'Mood Trend'),
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: hasData
-                      ? () => setState(() => _showLineChart = !_showLineChart)
-                      : null,
-                  icon: Icon(
-                    _showLineChart
-                        ? Icons.bar_chart_rounded
-                        : Icons.show_chart_rounded,
-                    size: 18,
-                  ),
-                  label: Text(
-                    _showLineChart
-                        ? tr(context, zh: '柱状图', en: 'Bars')
-                        : tr(context, zh: '曲线图', en: 'Line'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              tr(
-                context,
-                zh: '近 180 天按周聚合，帮助你观察心理状态变化',
-                en: 'Weekly trend over the last 180 days to support self-care',
+                alignment: Alignment.center,
+                child: Icon(icon, size: 20, color: colors.onSurfaceVariant),
               ),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 12),
-            if (!hasData)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text(
-                  tr(
-                    context,
-                    zh: '记录两条以上带心情的日记后，即可生成趋势图。',
-                    en: 'Add at least two diary entries with mood to generate the trend chart.',
-                  ),
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              )
-            else ...[
-              SizedBox(
-                height: 190,
-                width: double.infinity,
-                child: CustomPaint(
-                  painter: _showLineChart
-                      ? _MoodLineChartPainter(
-                          points: points,
-                          color: Theme.of(context).colorScheme.primary,
-                          axisColor: Theme.of(
-                            context,
-                          ).colorScheme.outlineVariant,
-                          labelColor: Theme.of(
-                            context,
-                          ).colorScheme.onSurfaceVariant,
-                        )
-                      : _MoodBarChartPainter(
-                          points: points,
-                          color: Theme.of(context).colorScheme.primary,
-                          axisColor: Theme.of(
-                            context,
-                          ).colorScheme.outlineVariant,
-                          labelColor: Theme.of(
-                            context,
-                          ).colorScheme.onSurfaceVariant,
-                        ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _buildStatChip(
-                    context,
-                    tr(context, zh: '周平均', en: 'Avg'),
-                    average.toStringAsFixed(1),
-                    Icons.favorite_outline,
+              const SizedBox(width: 8),
+              trailing ??
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: colors.onSurfaceVariant,
                   ),
-                  _buildStatChip(
-                    context,
-                    tr(context, zh: '最新', en: 'Latest'),
-                    latest.toStringAsFixed(1),
-                    Icons.today_outlined,
-                  ),
-                  _buildStatChip(
-                    context,
-                    tr(context, zh: '变化', en: 'Change'),
-                    '${delta >= 0 ? '+' : ''}${delta.toStringAsFixed(1)}',
-                    delta >= 0
-                        ? Icons.trending_up_rounded
-                        : Icons.trending_down_rounded,
-                  ),
-                ],
-              ),
             ],
-          ],
+          ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildStatChip(
-    BuildContext context,
-    String label,
-    String value,
-    IconData icon,
-  ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(999),
+class _ClearCacheTile extends StatelessWidget {
+  const _ClearCacheTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return _SettingsActionTile(
+      icon: Icons.cleaning_services_outlined,
+      title: tr(context, zh: '清理附件缓存', en: 'Clear Attachment Cache'),
+      subtitle: tr(
+        context,
+        zh: '移除已同步原图，按需重新下载。',
+        en: 'Remove synced originals and re-download on demand.',
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(width: 6),
-          Text('$label $value', style: Theme.of(context).textTheme.labelLarge),
-        ],
+      onTap: () async {
+        final confirmed = await showMotionDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(tr(context, zh: '清理缓存', en: 'Clear Cache')),
+            content: Text(
+              tr(
+                context,
+                zh: '将删除已同步的本地原图，缩略图会保留。是否继续？',
+                en: 'Synced local originals will be removed. Continue?',
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: Text(tr(context, zh: '取消', en: 'Cancel')),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: Text(tr(context, zh: '清理', en: 'Clear')),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true || !context.mounted) {
+          return;
+        }
+        final removed = await context
+            .read<DiaryAppState>()
+            .clearSyncedAttachmentCache();
+        if (!context.mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              tr(
+                context,
+                zh: '已清理 $removed 个缓存文件',
+                en: 'Cleared $removed cached files',
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _TrashTile extends StatelessWidget {
+  const _TrashTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return _SettingsActionTile(
+      icon: Icons.delete_outline,
+      title: tr(context, zh: '回收站', en: 'Trash'),
+      subtitle: tr(
+        context,
+        zh: '恢复或永久删除日记。',
+        en: 'Restore or permanently delete entries.',
       ),
+      onTap: () {
+        Navigator.of(context).push(buildPageTransitionRoute(const TrashPage()));
+      },
     );
   }
 }
 
-class _MoodTrendPoint {
-  const _MoodTrendPoint({
-    required this.start,
-    required this.score,
-    required this.count,
-  });
-
-  final DateTime start;
-  final double score;
-  final int count;
-}
-
-List<_MoodTrendPoint> _buildMoodTrendPoints(
-  List<DiaryEntry> entries, {
-  int windowDays = 180,
-}) {
-  final now = DateTime.now();
-  final start = DateTime(
-    now.year,
-    now.month,
-    now.day,
-  ).subtract(Duration(days: windowDays - 1));
-  final weekly = <DateTime, List<double>>{};
-  for (final entry in entries) {
-    if (entry.eventAt.isBefore(start)) {
-      continue;
-    }
-    final score = _extractMoodScore(entry.mood);
-    if (score == null) {
-      continue;
-    }
-    final bucket = _startOfWeek(entry.eventAt);
-    (weekly[bucket] ??= <double>[]).add(score);
-  }
-
-  final points = weekly.entries.map((item) {
-    final values = item.value;
-    final avg = values.reduce((a, b) => a + b) / values.length;
-    return _MoodTrendPoint(start: item.key, score: avg, count: values.length);
-  }).toList();
-  points.sort((a, b) => a.start.compareTo(b.start));
-  if (points.length > 26) {
-    return points.sublist(points.length - 26);
-  }
-  return points;
-}
-
-DateTime _startOfWeek(DateTime dateTime) {
-  final day = DateTime(dateTime.year, dateTime.month, dateTime.day);
-  return day.subtract(Duration(days: day.weekday - DateTime.monday));
-}
-
-double? _extractMoodScore(String rawMood) {
-  final mood = rawMood.trim();
-  if (mood.isEmpty) {
-    return null;
-  }
-  const moodScores = <String, double>{
-    '😞': 1.0,
-    '😐': 2.0,
-    '😌': 3.0,
-    '🙂': 4.0,
-    '😄': 5.0,
-    '🥰': 5.0,
-  };
-  for (final item in moodScores.entries) {
-    if (mood.contains(item.key)) {
-      return item.value;
-    }
-  }
-
-  final lower = mood.toLowerCase();
-  const positiveHints = ['开心', '高兴', '满足', '愉快', 'happy', 'great', 'good'];
-  for (final word in positiveHints) {
-    if (lower.contains(word)) {
-      return 4.0;
-    }
-  }
-  const negativeHints = [
-    '难过',
-    '焦虑',
-    '疲惫',
-    '烦',
-    'sad',
-    'anxious',
-    'tired',
-    'bad',
-  ];
-  for (final word in negativeHints) {
-    if (lower.contains(word)) {
-      return 2.0;
-    }
-  }
-  return 3.0;
-}
-
-class _MoodLineChartPainter extends CustomPainter {
-  const _MoodLineChartPainter({
-    required this.points,
-    required this.color,
-    required this.axisColor,
-    required this.labelColor,
-  });
-
-  final List<_MoodTrendPoint> points;
-  final Color color;
-  final Color axisColor;
-  final Color labelColor;
+class _WebDavTile extends StatelessWidget {
+  const _WebDavTile();
 
   @override
-  void paint(Canvas canvas, Size size) {
-    if (points.length < 2) {
-      return;
-    }
-    const left = 28.0;
-    const right = 12.0;
-    const top = 12.0;
-    const bottom = 24.0;
-    final width = size.width - left - right;
-    final height = size.height - top - bottom;
-    if (width <= 0 || height <= 0) {
-      return;
-    }
-
-    final gridPaint = Paint()
-      ..color = axisColor
-      ..strokeWidth = 1;
-    for (var i = 0; i <= 4; i++) {
-      final y = top + height * i / 4;
-      canvas.drawLine(
-        Offset(left, y),
-        Offset(size.width - right, y),
-        gridPaint,
-      );
-    }
-
-    final path = Path();
-    for (var i = 0; i < points.length; i++) {
-      final x = left + width * i / (points.length - 1);
-      final y = top + (5 - points[i].score).clamp(0, 4) / 4 * height;
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-    }
-
-    final linePaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..strokeWidth = 2.5;
-    canvas.drawPath(path, linePaint);
-
-    final dotPaint = Paint()..color = color;
-    for (var i = 0; i < points.length; i++) {
-      final x = left + width * i / (points.length - 1);
-      final y = top + (5 - points[i].score).clamp(0, 4) / 4 * height;
-      canvas.drawCircle(Offset(x, y), 2.5, dotPaint);
-    }
-
-    _drawDateLabels(canvas, size, points.first.start, points.last.start);
-  }
-
-  @override
-  bool shouldRepaint(covariant _MoodLineChartPainter oldDelegate) {
-    return oldDelegate.points != points ||
-        oldDelegate.color != color ||
-        oldDelegate.axisColor != axisColor ||
-        oldDelegate.labelColor != labelColor;
-  }
-
-  void _drawDateLabels(Canvas canvas, Size size, DateTime start, DateTime end) {
-    final style = TextStyle(color: labelColor, fontSize: 11);
-    final startPainter = TextPainter(
-      text: TextSpan(text: DateFormat('M/d').format(start), style: style),
-      textDirection: ui.TextDirection.ltr,
-    )..layout();
-    startPainter.paint(canvas, Offset(6, size.height - 18));
-
-    final endPainter = TextPainter(
-      text: TextSpan(text: DateFormat('M/d').format(end), style: style),
-      textDirection: ui.TextDirection.ltr,
-    )..layout();
-    endPainter.paint(
-      canvas,
-      Offset(size.width - endPainter.width - 6, size.height - 18),
+  Widget build(BuildContext context) {
+    return _SettingsActionTile(
+      icon: Icons.cloud_outlined,
+      title: tr(context, zh: 'WebDAV 同步', en: 'WebDAV Sync'),
+      subtitle: tr(
+        context,
+        zh: '配置私有云同步参数。',
+        en: 'Configure private cloud synchronization.',
+      ),
+      onTap: () {
+        Navigator.of(
+          context,
+        ).push(buildPageTransitionRoute(const WebDavSettingsPage()));
+      },
     );
   }
 }
 
-class _MoodBarChartPainter extends CustomPainter {
-  const _MoodBarChartPainter({
-    required this.points,
-    required this.color,
-    required this.axisColor,
-    required this.labelColor,
-  });
-
-  final List<_MoodTrendPoint> points;
-  final Color color;
-  final Color axisColor;
-  final Color labelColor;
+class _AppearanceTile extends StatelessWidget {
+  const _AppearanceTile();
 
   @override
-  void paint(Canvas canvas, Size size) {
-    if (points.length < 2) {
-      return;
-    }
-    const left = 28.0;
-    const right = 12.0;
-    const top = 12.0;
-    const bottom = 24.0;
-    final width = size.width - left - right;
-    final height = size.height - top - bottom;
-    if (width <= 0 || height <= 0) {
-      return;
-    }
-
-    final gridPaint = Paint()
-      ..color = axisColor
-      ..strokeWidth = 1;
-    for (var i = 0; i <= 4; i++) {
-      final y = top + height * i / 4;
-      canvas.drawLine(
-        Offset(left, y),
-        Offset(size.width - right, y),
-        gridPaint,
-      );
-    }
-
-    final barGap = 5.0;
-    final barWidth = math.max(
-      2.0,
-      (width - (points.length - 1) * barGap) / points.length,
-    );
-    final paint = Paint()..color = color.withValues(alpha: 0.82);
-    var x = left;
-    for (final point in points) {
-      final barHeight = ((point.score - 1).clamp(0, 4) / 4) * height;
-      final topY = top + height - barHeight;
-      final rect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(x, topY, barWidth, barHeight),
-        const Radius.circular(5),
-      );
-      canvas.drawRRect(rect, paint);
-      x += barWidth + barGap;
-    }
-
-    _drawDateLabels(canvas, size, points.first.start, points.last.start);
-  }
-
-  @override
-  bool shouldRepaint(covariant _MoodBarChartPainter oldDelegate) {
-    return oldDelegate.points != points ||
-        oldDelegate.color != color ||
-        oldDelegate.axisColor != axisColor ||
-        oldDelegate.labelColor != labelColor;
-  }
-
-  void _drawDateLabels(Canvas canvas, Size size, DateTime start, DateTime end) {
-    final style = TextStyle(color: labelColor, fontSize: 11);
-    final startPainter = TextPainter(
-      text: TextSpan(text: DateFormat('M/d').format(start), style: style),
-      textDirection: ui.TextDirection.ltr,
-    )..layout();
-    startPainter.paint(canvas, Offset(6, size.height - 18));
-
-    final endPainter = TextPainter(
-      text: TextSpan(text: DateFormat('M/d').format(end), style: style),
-      textDirection: ui.TextDirection.ltr,
-    )..layout();
-    endPainter.paint(
-      canvas,
-      Offset(size.width - endPainter.width - 6, size.height - 18),
+  Widget build(BuildContext context) {
+    return _SettingsActionTile(
+      icon: Icons.palette_outlined,
+      title: tr(context, zh: '主题与语言', en: 'Theme & Language'),
+      subtitle: tr(
+        context,
+        zh: '主题模式、配色种子与语言',
+        en: 'Theme mode, seed color and language',
+      ),
+      onTap: () {
+        Navigator.of(
+          context,
+        ).push(buildPageTransitionRoute(const AppearanceSettingsPage()));
+      },
     );
   }
 }
@@ -616,19 +355,12 @@ class _MoodBarChartPainter extends CustomPainter {
 class AppearanceSettingsPage extends StatelessWidget {
   const AppearanceSettingsPage({super.key});
 
-  static const List<Color> _presetThemeSeedColors = [
-    Color(0xFF7A8DA1),
-    Color(0xFF1F8A70),
-    Color(0xFF00639A),
-    Color(0xFF7B5EA7),
-    Color(0xFFB25D43),
-    Color(0xFFAF3B6E),
-    Color(0xFF4E6E58),
-    Color(0xFF8F6B00),
-    Color(0xFF2F6F9F),
-    Color(0xFF008571),
-    Color(0xFF8C4A64),
-    Color(0xFF4F5D75),
+  static const _presetThemeSeedColors = [
+    Color(0xFF34694A),
+    Color(0xFF6B7A42),
+    Color(0xFF586E8D),
+    Color(0xFF9A6A45),
+    Color(0xFF8A5C74),
   ];
 
   @override
@@ -640,105 +372,118 @@ class AppearanceSettingsPage extends StatelessWidget {
       body: Consumer<DiaryAppState>(
         builder: (context, appState, _) {
           return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 24),
             children: [
-              Text(
-                tr(context, zh: '主题', en: 'Theme'),
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 10),
-              SegmentedButton<ThemeMode>(
-                segments: [
-                  ButtonSegment(
-                    value: ThemeMode.system,
-                    label: Text(tr(context, zh: '跟随系统', en: 'System')),
-                  ),
-                  ButtonSegment(
-                    value: ThemeMode.light,
-                    label: Text(tr(context, zh: '浅色', en: 'Light')),
-                  ),
-                  ButtonSegment(
-                    value: ThemeMode.dark,
-                    label: Text(tr(context, zh: '深色', en: 'Dark')),
-                  ),
-                ],
-                selected: {appState.themeMode},
-                onSelectionChanged: (selection) {
-                  appState.setThemeMode(selection.first);
-                },
-              ),
-              const SizedBox(height: 20),
-              Text(
-                tr(context, zh: '自定义主题色', en: 'Custom Theme Color'),
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                tr(
-                  context,
-                  zh: '选择一个种子颜色，应用将自动生成完整的 Material 3 配色方案。',
-                  en: 'Pick a seed color and generate a full Material 3 color scheme automatically.',
-                ),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: _presetThemeSeedColors.map((color) {
-                  return _ThemeSeedColorOption(
-                    color: color,
-                    selected:
-                        appState.themeSeedColor.toARGB32() == color.toARGB32(),
-                    onTap: () => appState.setThemeSeedColor(color),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                '${tr(context, zh: '当前', en: 'Current')}: #${appState.themeSeedColor.toARGB32().toRadixString(16).substring(2).toUpperCase()}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 20),
-              Text(
-                tr(context, zh: '语言', en: 'Language'),
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 10),
-              SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(value: 'zh_CN', label: Text('中文')),
-                  ButtonSegment(value: 'en_US', label: Text('English')),
-                ],
-                selected: {
-                  appState.locale.languageCode == 'en' ? 'en_US' : 'zh_CN',
-                },
-                onSelectionChanged: (selection) {
-                  final code = selection.first;
-                  if (code == 'en_US') {
-                    appState.setLocale(const Locale('en', 'US'));
-                  } else {
-                    appState.setLocale(const Locale('zh', 'CN'));
-                  }
-                },
-              ),
-              const SizedBox(height: 20),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  tr(context, zh: '启用每日一言', en: 'Enable Daily Quote'),
-                ),
-                subtitle: Text(
-                  tr(
-                    context,
-                    zh: '允许应用每天联网获取一条短句。',
-                    en: 'Allow one network request per day to fetch a short quote.',
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        tr(context, zh: '主题模式', en: 'Theme Mode'),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 10),
+                      SegmentedButton<ThemeMode>(
+                        segments: [
+                          ButtonSegment(
+                            value: ThemeMode.system,
+                            label: Text(tr(context, zh: '跟随系统', en: 'System')),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.light,
+                            label: Text(tr(context, zh: '浅色', en: 'Light')),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.dark,
+                            label: Text(tr(context, zh: '深色', en: 'Dark')),
+                          ),
+                        ],
+                        selected: {appState.themeMode},
+                        onSelectionChanged: (selection) {
+                          appState.setThemeMode(selection.first);
+                        },
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        tr(context, zh: '主题种子色', en: 'Theme Seed Color'),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: _presetThemeSeedColors.map((color) {
+                          return _ThemeSeedColorOption(
+                            color: color,
+                            selected:
+                                appState.themeSeedColor.toARGB32() ==
+                                color.toARGB32(),
+                            onTap: () => appState.setThemeSeedColor(color),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        '#${appState.themeSeedColor.toARGB32().toRadixString(16).substring(2).toUpperCase()}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
                   ),
                 ),
-                value: appState.dailyQuoteEnabled,
-                onChanged: (value) {
-                  appState.setDailyQuoteEnabled(value);
-                },
+              ),
+              const SizedBox(height: 14),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        tr(context, zh: '语言', en: 'Language'),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 10),
+                      SegmentedButton<String>(
+                        segments: const [
+                          ButtonSegment(value: 'zh_CN', label: Text('简体中文')),
+                          ButtonSegment(value: 'en_US', label: Text('English')),
+                        ],
+                        selected: {
+                          appState.locale.languageCode == 'en'
+                              ? 'en_US'
+                              : 'zh_CN',
+                        },
+                        onSelectionChanged: (selection) {
+                          final code = selection.first;
+                          appState.setLocale(
+                            code == 'en_US'
+                                ? const Locale('en', 'US')
+                                : const Locale('zh', 'CN'),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(tr(context, zh: '每日一句', en: 'Daily Quote')),
+                        subtitle: Text(
+                          tr(
+                            context,
+                            zh: '每天请求一次短句并显示在首页顶部。',
+                            en: 'Fetch one quote per day for the home header.',
+                          ),
+                        ),
+                        value: appState.dailyQuoteEnabled,
+                        onChanged: appState.setDailyQuoteEnabled,
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           );
@@ -768,8 +513,8 @@ class _ThemeSeedColorOption extends StatelessWidget {
       borderRadius: BorderRadius.circular(14),
       onTap: onTap,
       child: AnimatedContainer(
-        duration: MotionSpec.clickDuration,
-        curve: MotionSpec.clickCurve,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
         width: 38,
         height: 38,
         decoration: BoxDecoration(
@@ -841,7 +586,6 @@ class _WebDavSettingsPageState extends State<WebDavSettingsPage> {
       return false;
     }
     final appState = context.read<DiaryAppState>();
-    final messenger = ScaffoldMessenger.of(context);
     final config = WebDavConfig(
       serverUrl: _urlController.text.trim(),
       username: _userController.text.trim(),
@@ -855,215 +599,311 @@ class _WebDavSettingsPageState extends State<WebDavSettingsPage> {
     if (!mounted) {
       return false;
     }
-    messenger.showSnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(tr(context, zh: '配置已保存', en: 'Saved')),
+        content: Text(tr(context, zh: '已保存', en: 'Saved')),
       ),
     );
     return true;
+  }
+
+  Future<void> _saveAndTest(DiaryAppState appState) async {
+    final okToContinue = await _saveConfig();
+    if (!okToContinue || !mounted) {
+      return;
+    }
+    try {
+      final ok = await appState.testWebDavConnection();
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            ok
+                ? tr(context, zh: '连接成功', en: 'Connected')
+                : tr(context, zh: '连接失败', en: 'Failed to connect'),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${tr(context, zh: '连接失败：', en: 'Connection failed: ')}$e',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _syncNow(DiaryAppState appState) async {
+    final okToContinue = await _saveConfig();
+    if (!okToContinue || !mounted) {
+      return;
+    }
+    final result = await appState.syncNow();
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${result.message} ${tr(context, zh: '上传', en: 'up')}:${result.uploaded} ${tr(context, zh: '下载', en: 'down')}:${result.downloaded} ${tr(context, zh: '冲突', en: 'conflicts')}:${result.conflicts}',
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(tr(context, zh: 'WebDAV 设置', en: 'WebDAV')),
+        title: Text(tr(context, zh: 'WebDAV', en: 'WebDAV')),
       ),
       body: Consumer<DiaryAppState>(
         builder: (context, appState, _) {
+          final colors = Theme.of(context).colorScheme;
           return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 146),
             children: [
-              Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    TextFormField(
-                      controller: _urlController,
-                      decoration: InputDecoration(
-                        labelText: tr(context, zh: '服务器地址', en: 'Server URL'),
-                        hintText: 'https://dav.example.com',
-                      ),
-                      validator: (value) =>
-                          (value == null || value.trim().isEmpty)
-                          ? tr(context, zh: '必填', en: 'Required')
-                          : null,
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: _userController,
-                      decoration: InputDecoration(
-                        labelText: tr(context, zh: '用户名', en: 'Username'),
-                      ),
-                      validator: (value) =>
-                          (value == null || value.trim().isEmpty)
-                          ? tr(context, zh: '必填', en: 'Required')
-                          : null,
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: _passwordController,
-                      obscureText: _obscurePassword,
-                      decoration: InputDecoration(
-                        labelText: tr(context, zh: '密码', en: 'Password'),
-                        suffixIcon: IconButton(
-                          onPressed: () {
-                            setState(
-                              () => _obscurePassword = !_obscurePassword,
-                            );
+              Align(
+                alignment: Alignment.center,
+                child: Container(
+                  width: 76,
+                  height: 76,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(24),
+                    color: colors.primaryContainer,
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    Icons.cloud_done_outlined,
+                    color: colors.onPrimaryContainer,
+                    size: 34,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                tr(context, zh: '同步你的日记', en: 'Sync Your Diary'),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                tr(
+                  context,
+                  zh: '连接你的私有 WebDAV 空间用于备份与多端同步。',
+                  en: 'Connect private WebDAV storage for backup and sync.',
+                ),
+                textAlign: TextAlign.center,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+              ),
+              const SizedBox(height: 14),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        TextFormField(
+                          controller: _urlController,
+                          decoration: InputDecoration(
+                            labelText: tr(
+                              context,
+                              zh: '服务器地址',
+                              en: 'Server URL',
+                            ),
+                            hintText: 'https://dav.example.com',
+                            prefixIcon: const Icon(Icons.dns_outlined),
+                          ),
+                          validator: (value) =>
+                              (value == null || value.trim().isEmpty)
+                              ? tr(context, zh: '必填项', en: 'Required')
+                              : null,
+                        ),
+                        const SizedBox(height: 10),
+                        TextFormField(
+                          controller: _userController,
+                          decoration: InputDecoration(
+                            labelText: tr(context, zh: '用户名', en: 'Username'),
+                            prefixIcon: const Icon(Icons.person_outline),
+                          ),
+                          validator: (value) =>
+                              (value == null || value.trim().isEmpty)
+                              ? tr(context, zh: '必填项', en: 'Required')
+                              : null,
+                        ),
+                        const SizedBox(height: 10),
+                        TextFormField(
+                          controller: _passwordController,
+                          obscureText: _obscurePassword,
+                          decoration: InputDecoration(
+                            labelText: tr(context, zh: '密码', en: 'Password'),
+                            prefixIcon: const Icon(Icons.lock_outline),
+                            suffixIcon: IconButton(
+                              onPressed: () {
+                                setState(
+                                  () => _obscurePassword = !_obscurePassword,
+                                );
+                              },
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                              ),
+                            ),
+                          ),
+                          validator: (value) =>
+                              (value == null || value.trim().isEmpty)
+                              ? tr(context, zh: '必填项', en: 'Required')
+                              : null,
+                        ),
+                        const SizedBox(height: 10),
+                        TextFormField(
+                          controller: _remoteDirController,
+                          decoration: InputDecoration(
+                            labelText: tr(
+                              context,
+                              zh: '远程目录',
+                              en: 'Remote Dir',
+                            ),
+                            prefixIcon: const Icon(Icons.folder_outlined),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        DropdownButtonFormField<ConflictStrategy>(
+                          initialValue: _conflictStrategy,
+                          decoration: InputDecoration(
+                            labelText: tr(
+                              context,
+                              zh: '冲突策略',
+                              en: 'Conflict Strategy',
+                            ),
+                            prefixIcon: const Icon(Icons.rule_outlined),
+                          ),
+                          items: [
+                            DropdownMenuItem(
+                              value: ConflictStrategy.lastWriteWins,
+                              child: Text(
+                                tr(
+                                  context,
+                                  zh: '最后写入优先',
+                                  en: 'Last Write Wins',
+                                ),
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: ConflictStrategy.keepBoth,
+                              child: Text(
+                                tr(context, zh: '保留双方', en: 'Keep Both'),
+                              ),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() => _conflictStrategy = value);
+                            }
                           },
-                          icon: Icon(
-                            _obscurePassword
-                                ? Icons.visibility
-                                : Icons.visibility_off,
-                          ),
-                        ),
-                      ),
-                      validator: (value) =>
-                          (value == null || value.trim().isEmpty)
-                          ? tr(context, zh: '必填', en: 'Required')
-                          : null,
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: _remoteDirController,
-                      decoration: InputDecoration(
-                        labelText: tr(context, zh: '远端目录', en: 'Remote Dir'),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<ConflictStrategy>(
-                      initialValue: _conflictStrategy,
-                      decoration: InputDecoration(
-                        labelText: tr(
-                          context,
-                          zh: '冲突策略',
-                          en: 'Conflict Strategy',
-                        ),
-                      ),
-                      items: [
-                        DropdownMenuItem(
-                          value: ConflictStrategy.lastWriteWins,
-                          child: Text(
-                            tr(context, zh: '最后修改者优先', en: 'Last Write Wins'),
-                          ),
-                        ),
-                        DropdownMenuItem(
-                          value: ConflictStrategy.keepBoth,
-                          child: Text(
-                            tr(context, zh: '保留两个副本', en: 'Keep Both'),
-                          ),
                         ),
                       ],
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() => _conflictStrategy = value);
-                        }
-                      },
                     ),
-                  ],
+                  ),
                 ),
               ),
               const SizedBox(height: 10),
               if (appState.lastSyncAt != null)
                 Text(
-                  tr(context, zh: '上次同步：', en: 'Last sync: ') +
-                      DateFormat(
-                        'yyyy-MM-dd HH:mm',
-                      ).format(appState.lastSyncAt!),
+                  '${tr(context, zh: '上次同步：', en: 'Last sync: ')}${DateFormat('yyyy-MM-dd HH:mm').format(appState.lastSyncAt!)}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
                 ),
               const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  FilledButton.icon(
-                    onPressed: _saveConfig,
-                    icon: const Icon(Icons.save_outlined),
-                    label: Text(tr(context, zh: '保存', en: 'Save')),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: appState.syncing
-                        ? null
-                        : () async {
-                            final okToContinue = await _saveConfig();
-                            if (!okToContinue || !context.mounted) {
-                              return;
-                            }
-                            try {
-                              final ok = await appState.testWebDavConnection();
-                              if (!context.mounted) {
-                                return;
-                              }
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    ok
-                                        ? tr(
-                                            context,
-                                            zh: '连接成功',
-                                            en: 'Connected',
-                                          )
-                                        : tr(
-                                            context,
-                                            zh: '连接失败',
-                                            en: 'Failed to connect',
-                                          ),
-                                  ),
-                                ),
-                              );
-                            } catch (e) {
-                              if (!context.mounted) {
-                                return;
-                              }
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    '${tr(context, zh: '连接失败：', en: 'Connection failed: ')}$e',
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                    icon: const Icon(Icons.network_check_outlined),
-                    label: Text(tr(context, zh: '测试连接', en: 'Test')),
-                  ),
-                  FilledButton.tonalIcon(
-                    onPressed: appState.syncing
-                        ? null
-                        : () async {
-                            final okToContinue = await _saveConfig();
-                            if (!okToContinue || !context.mounted) {
-                              return;
-                            }
-                            final result = await appState.syncNow();
-                            if (!context.mounted) {
-                              return;
-                            }
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  '${result.message} ${tr(context, zh: '上传', en: 'up')}:${result.uploaded} ${tr(context, zh: '下载', en: 'down')}:${result.downloaded} ${tr(context, zh: '冲突', en: 'conflicts')}:${result.conflicts}',
-                                ),
-                              ),
-                            );
-                          },
-                    icon: appState.syncing
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.sync),
-                    label: Text(
-                      appState.syncing
-                          ? tr(context, zh: '同步中...', en: 'Syncing...')
-                          : tr(context, zh: '立即同步', en: 'Sync now'),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colors.tertiaryContainer,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.shield_outlined,
+                      size: 18,
+                      color: colors.onTertiaryContainer,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        tr(
+                          context,
+                          zh: '账号密码仅保存在本机。',
+                          en: 'Credentials are only stored on this device.',
+                        ),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colors.onTertiaryContainer,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
+          );
+        },
+      ),
+      bottomNavigationBar: Consumer<DiaryAppState>(
+        builder: (context, appState, _) {
+          return SafeArea(
+            minimum: const EdgeInsets.fromLTRB(18, 8, 18, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FilledButton.icon(
+                  onPressed: appState.syncing
+                      ? null
+                      : () => _saveAndTest(appState),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 52),
+                  ),
+                  icon: const Icon(Icons.network_check_outlined),
+                  label: Text(
+                    tr(context, zh: '保存并测试连接', en: 'Save & Test Connection'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                FilledButton.tonalIcon(
+                  onPressed: appState.syncing ? null : () => _syncNow(appState),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 48),
+                  ),
+                  icon: appState.syncing
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.sync),
+                  label: Text(
+                    appState.syncing
+                        ? tr(context, zh: '同步中...', en: 'Syncing...')
+                        : tr(context, zh: '立即同步', en: 'Sync now'),
+                  ),
+                ),
+              ],
+            ),
           );
         },
       ),

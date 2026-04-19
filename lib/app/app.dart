@@ -10,6 +10,7 @@ import 'package:diary/ui/home/home_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 class DiaryAppBootstrap extends StatefulWidget {
@@ -87,40 +88,163 @@ class _DiaryAppBootstrapState extends State<DiaryAppBootstrap> {
     required Brightness brightness,
     required Color seedColor,
   }) {
-    final scheme = ColorScheme.fromSeed(
+    final baseScheme = ColorScheme.fromSeed(
       seedColor: seedColor,
       brightness: brightness,
-      dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
+      dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
     );
+    final isLight = brightness == Brightness.light;
+    final scheme = baseScheme.copyWith(
+      primary: Color.lerp(
+        baseScheme.primary,
+        isLight ? const Color(0xFF34694A) : const Color(0xFFB6F0C8),
+        isLight ? 0.8 : 0.45,
+      )!,
+      secondary: Color.lerp(
+        baseScheme.secondary,
+        isLight ? const Color(0xFF4F6455) : const Color(0xFFC3DAC8),
+        isLight ? 0.78 : 0.42,
+      )!,
+      onSurface: Color.lerp(
+        baseScheme.onSurface,
+        isLight ? const Color(0xFF2C342E) : const Color(0xFFE3EBE2),
+        isLight ? 0.78 : 0.45,
+      )!,
+      onSurfaceVariant: Color.lerp(
+        baseScheme.onSurfaceVariant,
+        isLight ? const Color(0xFF58615A) : const Color(0xFFA9B2A9),
+        isLight ? 0.72 : 0.4,
+      )!,
+      surface: Color.lerp(
+        baseScheme.surface,
+        isLight ? const Color(0xFFF7FAF4) : const Color(0xFF111711),
+        isLight ? 0.9 : 0.35,
+      )!,
+      surfaceContainerLowest: Color.lerp(
+        baseScheme.surfaceContainerLowest,
+        isLight ? Colors.white : const Color(0xFF172019),
+        0.6,
+      )!,
+      surfaceContainerLow: Color.lerp(
+        baseScheme.surfaceContainerLow,
+        isLight ? const Color(0xFFF0F5EE) : const Color(0xFF1C2720),
+        0.6,
+      )!,
+      surfaceContainerHighest: Color.lerp(
+        baseScheme.surfaceContainerHighest,
+        isLight ? const Color(0xFFDCE5DB) : const Color(0xFF29362D),
+        0.7,
+      )!,
+      tertiary: Color.lerp(
+        baseScheme.tertiary,
+        isLight ? const Color(0xFF556536) : const Color(0xFFCCD9A9),
+        0.55,
+      )!,
+    );
+    final textBase = ThemeData(brightness: brightness).textTheme;
+    final bodyText = GoogleFonts.manropeTextTheme(
+      textBase,
+    ).apply(bodyColor: scheme.onSurface, displayColor: scheme.onSurface);
+    final textTheme = bodyText.copyWith(
+      headlineLarge: GoogleFonts.plusJakartaSans(
+        textStyle: bodyText.headlineLarge,
+        fontWeight: FontWeight.w700,
+      ),
+      headlineMedium: GoogleFonts.plusJakartaSans(
+        textStyle: bodyText.headlineMedium,
+        fontWeight: FontWeight.w700,
+      ),
+      headlineSmall: GoogleFonts.plusJakartaSans(
+        textStyle: bodyText.headlineSmall,
+        fontWeight: FontWeight.w700,
+      ),
+      titleLarge: GoogleFonts.plusJakartaSans(
+        textStyle: bodyText.titleLarge,
+        fontWeight: FontWeight.w700,
+      ),
+      titleMedium: GoogleFonts.plusJakartaSans(
+        textStyle: bodyText.titleMedium,
+        fontWeight: FontWeight.w600,
+      ),
+      titleSmall: GoogleFonts.plusJakartaSans(
+        textStyle: bodyText.titleSmall,
+        fontWeight: FontWeight.w600,
+      ),
+      labelLarge: GoogleFonts.manrope(
+        textStyle: bodyText.labelLarge,
+        fontWeight: FontWeight.w600,
+      ),
+      labelMedium: GoogleFonts.manrope(
+        textStyle: bodyText.labelMedium,
+        fontWeight: FontWeight.w600,
+      ),
+      labelSmall: GoogleFonts.manrope(
+        textStyle: bodyText.labelSmall,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+    final radius = BorderRadius.circular(28);
+
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: scheme.surface,
+      dividerColor: Colors.transparent,
+      textTheme: textTheme,
       cardTheme: CardThemeData(
         margin: EdgeInsets.zero,
         elevation: 0,
-        color: scheme.surfaceContainerLow,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        color: scheme.surfaceContainerLowest,
+        shape: RoundedRectangleBorder(borderRadius: radius),
       ),
       appBarTheme: AppBarTheme(
         elevation: 0,
         scrolledUnderElevation: 0,
-        backgroundColor: scheme.surface,
+        centerTitle: false,
+        backgroundColor: scheme.surface.withValues(alpha: isLight ? 0.84 : 0.7),
         foregroundColor: scheme.onSurface,
+        surfaceTintColor: Colors.transparent,
       ),
       navigationBarTheme: NavigationBarThemeData(
         elevation: 0,
-        backgroundColor: scheme.surfaceContainerLow,
-        indicatorColor: scheme.secondaryContainer,
+        backgroundColor: Colors.transparent,
+        indicatorColor: scheme.secondaryContainer.withValues(alpha: 0.9),
+        surfaceTintColor: Colors.transparent,
+        labelTextStyle: WidgetStatePropertyAll(
+          textTheme.labelSmall?.copyWith(
+            color: scheme.onSurfaceVariant,
+            letterSpacing: 0.2,
+          ),
+        ),
+        height: 68,
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 0,
-        backgroundColor: scheme.primaryContainer,
-        foregroundColor: scheme.onPrimaryContainer,
+        backgroundColor: scheme.primary,
+        foregroundColor: scheme.onPrimary,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      listTileTheme: ListTileThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        tileColor: scheme.surfaceContainerLow,
+      ),
+      chipTheme: ChipThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        backgroundColor: scheme.surfaceContainerLow,
+        selectedColor: scheme.secondaryContainer,
+        side: BorderSide.none,
+        labelStyle: TextStyle(color: scheme.onSurface),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: scheme.surfaceContainerLowest,
+        surfaceTintColor: Colors.transparent,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: scheme.surfaceContainerLow,
+        fillColor: scheme.surfaceContainerHigh,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
@@ -131,8 +255,19 @@ class _DiaryAppBootstrapState extends State<DiaryAppBootstrap> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: scheme.primary, width: 1.2),
+          borderSide: BorderSide(
+            color: scheme.primary.withValues(alpha: 0.72),
+            width: 1.8,
+          ),
         ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: scheme.inverseSurface,
+        contentTextStyle: textTheme.bodyMedium?.copyWith(
+          color: scheme.onInverseSurface,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );
   }

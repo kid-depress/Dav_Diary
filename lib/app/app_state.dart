@@ -174,7 +174,7 @@ class DiaryAppState extends ChangeNotifier {
   }
 
   Future<void> setHomeLayoutMode(String mode) async {
-    final normalized = mode == 'timeline' ? 'timeline' : 'grid';
+    final normalized = mode == 'masonry' ? 'masonry' : 'grid';
     if (_homeLayoutMode == normalized) {
       return;
     }

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:diary/app/i18n.dart';
 import 'package:diary/data/models/diary_entry.dart';
 import 'package:diary/services/storage_service.dart';
 import 'package:flutter/material.dart';
@@ -45,7 +46,11 @@ class _AttachmentPreviewPageState extends State<AttachmentPreviewPage> {
     if (resolved == null) {
       setState(() {
         _resolvingPath = false;
-        _fileError = 'Attachment file not found';
+        _fileError = tr(
+          context,
+          zh: '附件文件不存在',
+          en: 'Attachment file not found',
+        );
       });
       return;
     }
@@ -75,7 +80,10 @@ class _AttachmentPreviewPageState extends State<AttachmentPreviewPage> {
       await controller.play();
     } catch (_) {
       await controller.dispose();
-      setState(() => _videoError = 'Failed to load video');
+      setState(
+        () =>
+            _videoError = tr(context, zh: '视频加载失败', en: 'Failed to load video'),
+      );
     }
   }
 
@@ -84,11 +92,19 @@ class _AttachmentPreviewPageState extends State<AttachmentPreviewPage> {
       return;
     }
     final messenger = ScaffoldMessenger.of(context);
+    final zh = isZh(context);
+    final msgNotFound = zh ? '附件不存在' : 'Attachment not found';
+    final msgUnsupported = zh
+        ? '该类型附件不支持保存到相册'
+        : 'This file type cannot be saved to album';
+    final msgSaved = zh ? '已保存到相册' : 'Saved to album';
+    final msgFailed = zh
+        ? '保存失败，请检查媒体权限'
+        : 'Save failed. Check media permissions.';
+
     final resolvedPath = _resolvedPath;
     if (resolvedPath == null) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Attachment not found')),
-      );
+      messenger.showSnackBar(SnackBar(content: Text(msgNotFound)));
       return;
     }
 
@@ -99,20 +115,14 @@ class _AttachmentPreviewPageState extends State<AttachmentPreviewPage> {
       } else if (_isVideo) {
         await Gal.putVideo(resolvedPath, album: 'Kidary');
       } else {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('This file type cannot be saved to album'),
-          ),
-        );
+        messenger.showSnackBar(SnackBar(content: Text(msgUnsupported)));
         return;
       }
       messenger.showSnackBar(
-        SnackBar(content: Text('Saved to album: ${p.basename(resolvedPath)}')),
+        SnackBar(content: Text('$msgSaved: ${p.basename(resolvedPath)}')),
       );
     } catch (_) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Save failed. Check media permissions.')),
-      );
+      messenger.showSnackBar(SnackBar(content: Text(msgFailed)));
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -130,7 +140,7 @@ class _AttachmentPreviewPageState extends State<AttachmentPreviewPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Attachment Preview'),
+        title: Text(tr(context, zh: '附件预览', en: 'Attachment Preview')),
         actions: [
           IconButton(
             onPressed: _saving ? null : _saveToAlbum,
@@ -140,26 +150,45 @@ class _AttachmentPreviewPageState extends State<AttachmentPreviewPage> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.download_outlined),
-            tooltip: 'Save to album',
+            tooltip: tr(context, zh: '保存到相册', en: 'Save to album'),
           ),
         ],
       ),
-      body: SafeArea(child: Center(child: _buildBody())),
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            child: Card(
+              clipBehavior: Clip.antiAlias,
+              child: Container(
+                width: double.infinity,
+                height: double.infinity,
+                color: Theme.of(context).colorScheme.surfaceContainerLow,
+                child: _buildBody(),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
   Widget _buildBody() {
     if (_resolvingPath) {
-      return const CircularProgressIndicator();
+      return const Center(child: CircularProgressIndicator());
     }
 
     if (_fileError != null) {
-      return Text(_fileError!);
+      return Center(child: Text(_fileError!));
     }
 
     final resolvedPath = _resolvedPath;
     if (resolvedPath == null) {
-      return const Text('Attachment not found');
+      return Center(
+        child: Text(
+          tr(context, zh: '附件文件不存在', en: 'Attachment file not found'),
+        ),
+      );
     }
 
     if (_isImage) {
@@ -169,17 +198,19 @@ class _AttachmentPreviewPageState extends State<AttachmentPreviewPage> {
         child: Image.file(
           File(resolvedPath),
           fit: BoxFit.contain,
-          errorBuilder: (context, _, _) => const Text('Failed to load image'),
+          errorBuilder: (context, _, _) => Center(
+            child: Text(tr(context, zh: '图片加载失败', en: 'Failed to load image')),
+          ),
         ),
       );
     }
 
     if (_isVideo) {
       if (_videoError != null) {
-        return Text(_videoError!);
+        return Center(child: Text(_videoError!));
       }
       if (!_videoReady || _videoController == null) {
-        return const CircularProgressIndicator();
+        return const Center(child: CircularProgressIndicator());
       }
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -211,6 +242,8 @@ class _AttachmentPreviewPageState extends State<AttachmentPreviewPage> {
       );
     }
 
-    return const Text('Preview not supported for this file');
+    return Center(
+      child: Text(tr(context, zh: '该附件类型暂不支持预览', en: 'Preview not supported')),
+    );
   }
 }
