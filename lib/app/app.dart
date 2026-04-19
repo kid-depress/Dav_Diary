@@ -218,7 +218,7 @@ class _DiaryAppBootstrapState extends State<DiaryAppBootstrap> {
             letterSpacing: 0.2,
           ),
         ),
-        height: 68,
+        height: 58,
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 0,

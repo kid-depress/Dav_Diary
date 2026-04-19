@@ -318,7 +318,7 @@ class _HomeShellState extends State<HomeShell> {
                             : const SizedBox(height: 2),
                       ),
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(14, 6, 14, 12),
+                        padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(28),
                           child: BackdropFilter(
@@ -338,11 +338,11 @@ class _HomeShellState extends State<HomeShell> {
                                 ],
                               ),
                               child: NavigationBar(
-                                height: 68,
+                                height: 58,
                                 selectedIndex: _index,
                                 labelBehavior:
                                     NavigationDestinationLabelBehavior
-                                        .onlyShowSelected,
+                                        .alwaysHide,
                                 onDestinationSelected: _selectTab,
                                 destinations: destinations,
                               ),
