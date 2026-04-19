@@ -88,6 +88,8 @@ class _DiaryAppBootstrapState extends State<DiaryAppBootstrap> {
     required Brightness brightness,
     required Color seedColor,
   }) {
+    Color blend(Color from, Color to, double t) => Color.lerp(from, to, t)!;
+
     final baseScheme = ColorScheme.fromSeed(
       seedColor: seedColor,
       brightness: brightness,
@@ -95,51 +97,51 @@ class _DiaryAppBootstrapState extends State<DiaryAppBootstrap> {
     );
     final isLight = brightness == Brightness.light;
     final scheme = baseScheme.copyWith(
-      primary: Color.lerp(
+      primary: blend(
         baseScheme.primary,
-        isLight ? const Color(0xFF34694A) : const Color(0xFFB6F0C8),
-        isLight ? 0.8 : 0.45,
-      )!,
-      secondary: Color.lerp(
+        baseScheme.primaryContainer,
+        isLight ? 0.16 : 0.24,
+      ),
+      secondary: blend(
         baseScheme.secondary,
-        isLight ? const Color(0xFF4F6455) : const Color(0xFFC3DAC8),
-        isLight ? 0.78 : 0.42,
-      )!,
-      onSurface: Color.lerp(
+        baseScheme.secondaryContainer,
+        isLight ? 0.12 : 0.2,
+      ),
+      onSurface: blend(
         baseScheme.onSurface,
-        isLight ? const Color(0xFF2C342E) : const Color(0xFFE3EBE2),
-        isLight ? 0.78 : 0.45,
-      )!,
-      onSurfaceVariant: Color.lerp(
+        isLight ? Colors.black : Colors.white,
+        isLight ? 0.04 : 0.06,
+      ),
+      onSurfaceVariant: blend(
         baseScheme.onSurfaceVariant,
-        isLight ? const Color(0xFF58615A) : const Color(0xFFA9B2A9),
-        isLight ? 0.72 : 0.4,
-      )!,
-      surface: Color.lerp(
+        baseScheme.onSurface,
+        0.08,
+      ),
+      surface: blend(
         baseScheme.surface,
-        isLight ? const Color(0xFFF7FAF4) : const Color(0xFF111711),
-        isLight ? 0.9 : 0.35,
-      )!,
-      surfaceContainerLowest: Color.lerp(
+        baseScheme.primary,
+        isLight ? 0.03 : 0.07,
+      ),
+      surfaceContainerLowest: blend(
         baseScheme.surfaceContainerLowest,
-        isLight ? Colors.white : const Color(0xFF172019),
-        0.6,
-      )!,
-      surfaceContainerLow: Color.lerp(
+        baseScheme.primary,
+        isLight ? 0.015 : 0.06,
+      ),
+      surfaceContainerLow: blend(
         baseScheme.surfaceContainerLow,
-        isLight ? const Color(0xFFF0F5EE) : const Color(0xFF1C2720),
-        0.6,
-      )!,
-      surfaceContainerHighest: Color.lerp(
+        baseScheme.primary,
+        isLight ? 0.025 : 0.08,
+      ),
+      surfaceContainerHighest: blend(
         baseScheme.surfaceContainerHighest,
-        isLight ? const Color(0xFFDCE5DB) : const Color(0xFF29362D),
-        0.7,
-      )!,
-      tertiary: Color.lerp(
+        baseScheme.primary,
+        isLight ? 0.045 : 0.11,
+      ),
+      tertiary: blend(
         baseScheme.tertiary,
-        isLight ? const Color(0xFF556536) : const Color(0xFFCCD9A9),
-        0.55,
-      )!,
+        baseScheme.tertiaryContainer,
+        isLight ? 0.1 : 0.16,
+      ),
     );
     final textBase = ThemeData(brightness: brightness).textTheme;
     final bodyText = GoogleFonts.manropeTextTheme(

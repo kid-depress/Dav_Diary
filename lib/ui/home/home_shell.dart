@@ -383,7 +383,7 @@ class _PrimaryGradientFab extends StatelessWidget {
               end: Alignment.bottomRight,
               colors: [
                 colors.primary,
-                Color.lerp(colors.primary, const Color(0xFF285D3F), 0.72)!,
+                Color.lerp(colors.primary, colors.secondary, 0.52)!,
               ],
             ),
             boxShadow: [

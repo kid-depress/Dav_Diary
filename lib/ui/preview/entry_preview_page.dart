@@ -98,11 +98,11 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text(tr(context, zh: '鍙栨秷', en: 'Cancel')),
+            child: Text(tr(context, zh: '取消', en: 'Cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text(tr(context, zh: '鍒犻櫎', en: 'Delete')),
+            child: Text(tr(context, zh: '删除', en: 'Delete')),
           ),
         ],
       ),
@@ -322,7 +322,7 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(tr(context, zh: '鏃ヨ璇︽儏', en: 'Entry Details')),
+        title: Text(tr(context, zh: '日记详情', en: 'Entry Details')),
         actions: [
           IconButton(
             onPressed: _deleting ? null : _deleteEntry,
@@ -333,11 +333,11 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.delete_outline),
-            tooltip: tr(context, zh: '鍒犻櫎', en: 'Delete'),
+            tooltip: tr(context, zh: '删除', en: 'Delete'),
           ),
           TextButton(
             onPressed: _deleting ? null : _editEntry,
-            child: Text(tr(context, zh: '缂栬緫', en: 'Edit')),
+            child: Text(tr(context, zh: '编辑', en: 'Edit')),
           ),
         ],
       ),
@@ -372,7 +372,7 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
                           color: colors.surfaceContainerLowest,
                         ),
                         child: Text(
-                          tr(context, zh: '鏆傛棤闄勪欢', en: 'No attachments'),
+                          tr(context, zh: '暂无附件', en: 'No attachments'),
                         ),
                       ),
               ),
@@ -389,7 +389,7 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
                     avatar: Icon(moodMeta.icon, size: 18),
                     label: Text(
                       moodMeta.notes.isEmpty
-                          ? tr(context, zh: '蹇冩儏', en: 'Mood')
+                          ? tr(context, zh: '心情', en: 'Mood')
                           : moodMeta.notes,
                     ),
                   ),
@@ -398,20 +398,20 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
                     avatar: Icon(weatherMeta.icon, size: 18),
                     label: Text(
                       weatherMeta.notes.isEmpty
-                          ? tr(context, zh: '澶╂皵', en: 'Weather')
+                          ? tr(context, zh: '天气', en: 'Weather')
                           : weatherMeta.notes,
                     ),
                   ),
                 Chip(
                   label: Text(
-                    tr(context, zh: '鏃堕棿 $dateText', en: 'Time $dateText'),
+                    tr(context, zh: '时间 $dateText', en: 'Time $dateText'),
                   ),
                 ),
                 Chip(
                   label: Text(
                     tr(
                       context,
-                      zh: '浣嶇疆 $locationText',
+                      zh: '位置 $locationText',
                       en: 'Location $locationText',
                     ),
                   ),
