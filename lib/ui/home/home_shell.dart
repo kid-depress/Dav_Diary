@@ -156,8 +156,8 @@ class _HomeShellState extends State<HomeShell> {
         final isTablet = constraints.maxWidth >= _tabletBreakpoint;
         return Scaffold(
           appBar: AppBar(
-            toolbarHeight: 72,
-            titleSpacing: 22,
+            toolbarHeight: _index == 1 ? 16 : 72,
+            titleSpacing: _index == 1 ? 0 : 22,
             title: _index == 0
                 ? Column(
                     mainAxisSize: MainAxisSize.min,
@@ -197,12 +197,16 @@ class _HomeShellState extends State<HomeShell> {
                       ],
                     ],
                   )
-                : Text(
-                    titles[_index],
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+                : (_index == 1
+                      ? const SizedBox.shrink()
+                      : Text(
+                          titles[_index],
+                          style: Theme.of(
+                            context,
+                          ).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        )),
             flexibleSpace: ClipRect(
               child: BackdropFilter(
                 filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
@@ -223,7 +227,7 @@ class _HomeShellState extends State<HomeShell> {
                     ),
                     const SizedBox(width: 10),
                   ]
-                : const [SizedBox(width: 4)],
+                : (_index == 1 ? const [] : const [SizedBox(width: 4)]),
           ),
           body: isTablet
               ? Row(
