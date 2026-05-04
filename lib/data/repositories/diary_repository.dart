@@ -19,6 +19,15 @@ class DiaryRepository {
     return rows.map(DiaryEntry.fromDbMap).toList();
   }
 
+  Future<List<DiaryEntry>> listAll() async {
+    final db = await _db;
+    final rows = await db.query(
+      'entries',
+      orderBy: 'event_at DESC, updated_at DESC',
+    );
+    return rows.map(DiaryEntry.fromDbMap).toList();
+  }
+
   Future<List<DiaryEntry>> listByDate(DateTime day) async {
     final db = await _db;
     final start = DateTime(day.year, day.month, day.day);
