@@ -300,10 +300,6 @@ class _GridEntryCard extends StatelessWidget {
                         color: colors.onSurface,
                       ),
                     ),
-                  if (hasMeta) ...[
-                    const SizedBox(height: 8),
-                    _EntryMetaWrap(entry: entry),
-                  ],
                   if (hasLocation) ...[
                     const SizedBox(height: 8),
                     Text(
@@ -336,12 +332,10 @@ class _GridEntryCard extends StatelessWidget {
                               ),
                         ),
                       ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.edit_note_rounded,
-                        size: 16,
-                        color: colors.onSurfaceVariant.withValues(alpha: 0.86),
-                      ),
+                      if (hasMeta) ...[
+                        const SizedBox(width: 8),
+                        _EntryMetaWrap(entry: entry),
+                      ],
                     ],
                   ),
                 ],
@@ -363,9 +357,8 @@ class _EntryMetaWrap extends StatelessWidget {
   Widget build(BuildContext context) {
     final mood = parseMoodMeta(entry.mood);
     final weather = parseWeatherMeta(entry.weather);
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         if (mood.hasValue)
           _EntryMetaTag(
@@ -374,6 +367,7 @@ class _EntryMetaWrap extends StatelessWidget {
                 ? tr(context, zh: '心情', en: 'Mood')
                 : mood.notes,
           ),
+        if (mood.hasValue && weather.hasValue) const SizedBox(width: 6),
         if (weather.hasValue)
           _EntryMetaTag(
             icon: weather.icon,

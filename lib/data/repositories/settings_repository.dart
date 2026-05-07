@@ -22,7 +22,10 @@ class SettingsRepository {
   static const _keyEnableDailyQuote = 'enable_daily_quote';
   static const _keyDailyQuoteText = 'daily_quote_text';
   static const _keyDailyQuoteDay = 'daily_quote_day';
-  static const _keyPendingHardDeleteIds = 'pending_hard_delete_ids';
+  static const _keyPendingHardDeletes = 'pending_hard_delete_ids';
+  static const _keyEntrySyncStates = 'entry_sync_states';
+  static const _keySyncDeviceId = 'sync_device_id';
+  static const _keySyncClock = 'sync_clock';
 
   Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
 
@@ -160,9 +163,9 @@ class SettingsRepository {
     await prefs.setInt(_keyDailyQuoteDay, dayStartEpochMs);
   }
 
-  Future<List<String>> loadPendingHardDeleteIds() async {
+  Future<List<Map<String, dynamic>>> loadPendingHardDeleteRecords() async {
     final prefs = await _prefs;
-    final raw = (prefs.getString(_keyPendingHardDeleteIds) ?? '').trim();
+    final raw = (prefs.getString(_keyPendingHardDeletes) ?? '').trim();
     if (raw.isEmpty) {
       return const [];
     }
@@ -171,27 +174,145 @@ class SettingsRepository {
       if (parsed is! List<dynamic>) {
         return const [];
       }
-      return parsed
-          .whereType<String>()
-          .map((id) => id.trim())
-          .where((id) => id.isNotEmpty)
-          .toSet()
-          .toList()
-        ..sort();
+      final seen = <String>{};
+      final records = <Map<String, dynamic>>[];
+      for (final item in parsed) {
+        if (item is String) {
+          final id = item.trim();
+          if (id.isEmpty || !seen.add(id)) {
+            continue;
+          }
+          records.add(<String, dynamic>{'id': id});
+          continue;
+        }
+        if (item is! Map<String, dynamic>) {
+          continue;
+        }
+        final id = (item['id'] ?? '') as String;
+        final normalizedId = id.trim();
+        if (normalizedId.isEmpty || !seen.add(normalizedId)) {
+          continue;
+        }
+        records.add(<String, dynamic>{
+          'id': normalizedId,
+          if (item['revision'] is String) 'revision': item['revision'],
+          if (item['targetRevision'] is String)
+            'targetRevision': item['targetRevision'],
+          if (item['deletedAt'] is String) 'deletedAt': item['deletedAt'],
+        });
+      }
+      records.sort(
+        (a, b) => ((a['id'] ?? '') as String).compareTo((b['id'] ?? '') as String),
+      );
+      return records;
     } catch (_) {
       return const [];
     }
   }
 
-  Future<void> savePendingHardDeleteIds(List<String> ids) async {
-    final normalized =
-        ids.map((id) => id.trim()).where((id) => id.isNotEmpty).toSet().toList()
-          ..sort();
+  Future<void> savePendingHardDeleteRecords(
+    List<Map<String, dynamic>> records,
+  ) async {
+    final normalized = <Map<String, dynamic>>[];
+    final seen = <String>{};
+    for (final record in records) {
+      final id = ((record['id'] ?? '') as String).trim();
+      if (id.isEmpty || !seen.add(id)) {
+        continue;
+      }
+      normalized.add(<String, dynamic>{
+        'id': id,
+        if (record['revision'] is String &&
+            ((record['revision'] as String).trim().isNotEmpty))
+          'revision': (record['revision'] as String).trim(),
+        if (record['targetRevision'] is String &&
+            ((record['targetRevision'] as String).trim().isNotEmpty))
+          'targetRevision': (record['targetRevision'] as String).trim(),
+        if (record['deletedAt'] is String &&
+            ((record['deletedAt'] as String).trim().isNotEmpty))
+          'deletedAt': (record['deletedAt'] as String).trim(),
+      });
+    }
+    normalized.sort(
+      (a, b) => ((a['id'] ?? '') as String).compareTo((b['id'] ?? '') as String),
+    );
     final prefs = await _prefs;
     if (normalized.isEmpty) {
-      await prefs.remove(_keyPendingHardDeleteIds);
+      await prefs.remove(_keyPendingHardDeletes);
       return;
     }
-    await prefs.setString(_keyPendingHardDeleteIds, jsonEncode(normalized));
+    await prefs.setString(_keyPendingHardDeletes, jsonEncode(normalized));
+  }
+
+  Future<Map<String, dynamic>> loadEntrySyncStates() async {
+    final prefs = await _prefs;
+    final raw = (prefs.getString(_keyEntrySyncStates) ?? '').trim();
+    if (raw.isEmpty) {
+      return const <String, dynamic>{};
+    }
+    try {
+      final parsed = jsonDecode(raw);
+      if (parsed is! Map<String, dynamic>) {
+        return const <String, dynamic>{};
+      }
+      return parsed;
+    } catch (_) {
+      return const <String, dynamic>{};
+    }
+  }
+
+  Future<void> saveEntrySyncStates(Map<String, dynamic> states) async {
+    final prefs = await _prefs;
+    if (states.isEmpty) {
+      await prefs.remove(_keyEntrySyncStates);
+      return;
+    }
+    await prefs.setString(_keyEntrySyncStates, jsonEncode(states));
+  }
+
+  Future<String> loadSyncDeviceId() async {
+    final prefs = await _prefs;
+    return (prefs.getString(_keySyncDeviceId) ?? '').trim();
+  }
+
+  Future<void> saveSyncDeviceId(String id) async {
+    final prefs = await _prefs;
+    final normalized = id.trim();
+    if (normalized.isEmpty) {
+      await prefs.remove(_keySyncDeviceId);
+      return;
+    }
+    await prefs.setString(_keySyncDeviceId, normalized);
+  }
+
+  Future<Map<String, dynamic>> loadSyncClock() async {
+    final prefs = await _prefs;
+    final raw = (prefs.getString(_keySyncClock) ?? '').trim();
+    if (raw.isEmpty) {
+      return const <String, dynamic>{};
+    }
+    try {
+      final parsed = jsonDecode(raw);
+      if (parsed is! Map<String, dynamic>) {
+        return const <String, dynamic>{};
+      }
+      return parsed;
+    } catch (_) {
+      return const <String, dynamic>{};
+    }
+  }
+
+  Future<void> saveSyncClock({
+    required int wallTimeMs,
+    required int counter,
+  }) async {
+    final prefs = await _prefs;
+    await prefs.setString(
+      _keySyncClock,
+      jsonEncode(<String, dynamic>{
+        'wallTimeMs': wallTimeMs,
+        'counter': counter,
+      }),
+    );
   }
 }
