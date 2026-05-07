@@ -205,13 +205,6 @@ class _RemoteFile<T> {
   final String eTag;
 }
 
-class _SyncClock {
-  const _SyncClock({required this.wallTimeMs, required this.counter});
-
-  final int wallTimeMs;
-  final int counter;
-}
-
 class _PendingHardDelete {
   const _PendingHardDelete({
     required this.id,
@@ -285,10 +278,9 @@ class SyncService {
   Future<void> markEntryHardDeleted(String id) async {
     final local = await _diaryRepository.getById(id);
     final state = await _loadSyncStateForEntry(id);
-    final revision =
-        state.lastSyncedRevision.trim().isNotEmpty
-            ? state.lastSyncedRevision
-            : _newRevisionString();
+    final revision = state.lastSyncedRevision.trim().isNotEmpty
+        ? state.lastSyncedRevision
+        : await _newRevisionString();
     final deletedAt = DateTime.now();
     final record = _PendingHardDelete(
       id: id,
@@ -337,49 +329,118 @@ class SyncService {
     return false;
   }
 
-  Future<Map<String, _ManifestItem>> _loadManifest(
-    webdav.Client client,
-    String remoteRoot,
+  int _compareRevision(String a, String b) {
+    if (a.isEmpty && b.isEmpty) {
+      return 0;
+    }
+    if (a.isEmpty) {
+      return -1;
+    }
+    if (b.isEmpty) {
+      return 1;
+    }
+    final ra = _Revision.decode(a);
+    final rb = _Revision.decode(b);
+    if (ra.wallTimeMs != rb.wallTimeMs) {
+      return ra.wallTimeMs.compareTo(rb.wallTimeMs);
+    }
+    if (ra.counter != rb.counter) {
+      return ra.counter.compareTo(rb.counter);
+    }
+    return ra.deviceId.compareTo(rb.deviceId);
+  }
+
+  String _contentFingerprint(DiaryEntry entry) {
+    final payload = utf8.encode(jsonEncode(<String, dynamic>{
+      'title': entry.title,
+      'plainText': entry.plainText,
+      'mood': entry.mood,
+      'weather': entry.weather,
+      'location': entry.location,
+      'attachments': entry.attachments
+          .map((a) => <String, dynamic>{
+                'hash': a.hash,
+                'remotePath': a.remotePath,
+              })
+          .toList(),
+    }));
+    return sha256.convert(payload).toString();
+  }
+
+  Future<String> _newRevisionString() async {
+    final clockData = await _settingsRepository.loadSyncClock();
+    final wallTimeMs = DateTime.now().millisecondsSinceEpoch;
+    final lastWallTime = (clockData['wallTimeMs'] ?? 0) as int;
+    var counter = (clockData['counter'] ?? 0) as int;
+    if (wallTimeMs > lastWallTime) {
+      counter = 1;
+    } else {
+      counter++;
+    }
+    await _settingsRepository.saveSyncClock(
+      wallTimeMs: wallTimeMs,
+      counter: counter,
+    );
+    final deviceId = await _resolveSyncDeviceId();
+    return _Revision(
+      deviceId: deviceId,
+      counter: counter,
+      wallTimeMs: wallTimeMs,
+    ).encode();
+  }
+
+  Future<String> _resolveSyncDeviceId() async {
+    var id = await _settingsRepository.loadSyncDeviceId();
+    if (id.isNotEmpty) {
+      return id;
+    }
+    id = const Uuid().v4();
+    await _settingsRepository.saveSyncDeviceId(id);
+    return id;
+  }
+
+  Future<_SyncState> _loadSyncStateForEntry(String id) async {
+    final states = await _settingsRepository.loadEntrySyncStates();
+    final raw = states[id];
+    if (raw is! Map<String, dynamic>) {
+      return _SyncState.empty;
+    }
+    return _SyncState.fromJson(raw);
+  }
+
+  Future<void> _clearEntrySyncState(String id) async {
+    final states = await _settingsRepository.loadEntrySyncStates();
+    states.remove(id);
+    await _settingsRepository.saveEntrySyncStates(states);
+  }
+
+  Future<void> _saveSyncStates(
+    Map<String, _SyncState> syncStates,
   ) async {
-    final bytes = await client.read(_manifestPath(remoteRoot));
-    final decoded = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
-    final list = (decoded['entries'] ?? <dynamic>[]) as List<dynamic>;
-    final result = <String, _ManifestItem>{};
-    for (final item in list.whereType<Map<String, dynamic>>()) {
-      final parsed = _ManifestItem.fromJson(item);
-      if (parsed.id.isNotEmpty && parsed.path.isNotEmpty) {
-        result[parsed.id] = parsed;
+    final states = await _settingsRepository.loadEntrySyncStates();
+    for (final entry in syncStates.entries) {
+      states[entry.key] = entry.value.toJson();
+    }
+    await _settingsRepository.saveEntrySyncStates(states);
+  }
+
+  Future<void> _upsertPendingHardDeletes(
+    List<_PendingHardDelete> records,
+  ) async {
+    final existing = await _settingsRepository.loadPendingHardDeleteRecords();
+    final existingMap = <String, Map<String, dynamic>>{};
+    for (final rec in existing) {
+      final id = (rec['id'] ?? '') as String;
+      if (id.isNotEmpty) {
+        existingMap[id] = rec;
       }
     }
-    return result;
-  }
-
-  /// Returns null when the manifest cannot be read (network error, not found, etc.).
-  Future<Map<String, _ManifestItem>?> _tryLoadManifest(
-    webdav.Client client,
-    String remoteRoot,
-  ) async {
-    try {
-      return await _loadManifest(client, remoteRoot);
-    } catch (_) {
-      return null;
+    for (final record in records) {
+      existingMap[record.id] = record.toJson();
     }
-  }
-
-  /// Lists .json.gz entry files in the remote entries directory.
-  Future<List<webdav.File>> _listRemoteEntryFiles(
-    webdav.Client client,
-    String remoteRoot,
-  ) async {
-    try {
-      final dir = _entryDir(remoteRoot);
-      final items = await client.readDir(dir);
-      return items
-          .where((f) => f.name != null && f.name!.endsWith('.json.gz'))
-          .toList();
-    } catch (_) {
-      return <webdav.File>[];
-    }
+    await _settingsRepository.savePendingHardDeleteRecords(
+      existingMap.values.toList(),
+    );
   }
 
   Future<void> _ensureRemoteLayout(webdav.Client client, String remoteRoot) async {
@@ -793,130 +854,166 @@ class SyncService {
     int uploaded = 0;
     int downloaded = 0;
     int conflicts = 0;
-    int recovered = 0;
 
     try {
       await client.ping();
-      await client.mkdirAll(_entryDir(remoteRoot));
-      await client.mkdirAll(_attachmentDir(remoteRoot));
-      await client.mkdirAll('${_attachmentDir(remoteRoot)}/thumbs');
+      await _ensureRemoteLayout(client, remoteRoot);
 
-      final manifest = await _tryLoadManifest(client, remoteRoot) ??
-          <String, _ManifestItem>{};
-      final pendingHardDeleteIds =
-          await _settingsRepository.loadPendingHardDeleteIds();
-      final processedHardDeleteIds = <String>[];
-      for (final id in pendingHardDeleteIds) {
-        final removed = manifest.remove(id);
-        if (removed != null) {
-          await client.remove(removed.path);
+      // ── Load remote state ────────────────────────────────────────
+      final remote = await _loadRemoteSnapshot(client, remoteRoot);
+
+      // ── Process pending hard deletes ─────────────────────────────
+      final pendingRecords = await _settingsRepository
+          .loadPendingHardDeleteRecords();
+      final processedIds = <String>[];
+      for (final raw in pendingRecords) {
+        final id = (raw['id'] ?? '') as String;
+        final trimmed = id.trim();
+        if (trimmed.isEmpty) {
+          continue;
         }
-        processedHardDeleteIds.add(id);
+        final record = _PendingHardDelete.fromJson(raw);
+        try {
+          await _writeTombstone(client, remoteRoot, record);
+        } catch (_) {
+          // Will retry on next sync.
+          continue;
+        }
+        processedIds.add(trimmed);
+      }
+      if (processedIds.isNotEmpty) {
+        final remaining = pendingRecords
+            .where((r) => !processedIds.contains(((r['id'] ?? '') as String).trim()))
+            .toList();
+        await _settingsRepository.savePendingHardDeleteRecords(remaining);
+      }
+
+      // ── Collect sync states ──────────────────────────────────────
+      final localAll = await _diaryRepository.listAll();
+      final syncStates = <String, _SyncState>{};
+      for (final entry in localAll) {
+        syncStates[entry.id] = await _loadSyncStateForEntry(entry.id);
       }
 
       // ── Upload local changes ─────────────────────────────────────
-      final changedEntries = await _diaryRepository.listUpdatedAfter(lastSync);
-      for (final entry in changedEntries) {
-        final uploadedEntry = await _uploadEntry(client, remoteRoot, entry);
-        await _diaryRepository.upsert(uploadedEntry);
-        manifest[uploadedEntry.id] = _ManifestItem(
-          id: uploadedEntry.id,
-          path: '${_entryDir(remoteRoot)}/${uploadedEntry.id}.json.gz',
-          updatedAt: uploadedEntry.updatedAt,
-          isDeleted: uploadedEntry.isDeleted,
+      for (final entry in localAll) {
+        final state = syncStates[entry.id] ?? _SyncState.empty;
+        final fingerprint = _contentFingerprint(entry);
+        final remoteFile = remote.entries[entry.id];
+        final remoteFingerprint = remoteFile?.payload.contentFingerprint ?? '';
+        final isContentSame = fingerprint == remoteFingerprint &&
+            remoteFingerprint.isNotEmpty;
+
+        if (isContentSame) {
+          // Content unchanged — just update sync state if needed.
+          if (remoteFile != null &&
+              remoteFile.payload.revision != state.lastSyncedRevision) {
+            syncStates[entry.id] = _SyncState(
+              lastSyncedRevision: remoteFile.payload.revision,
+              contentFingerprint: fingerprint,
+              lastRemoteUpdatedAt: remoteFile.modifiedAt,
+            );
+          }
+          continue;
+        }
+
+        final revision = await _newRevisionString();
+        await _uploadEntry(
+          client,
+          remoteRoot,
+          entry,
+          revision: revision,
+        );
+        syncStates[entry.id] = _SyncState(
+          lastSyncedRevision: revision,
+          contentFingerprint: fingerprint,
+          lastRemoteUpdatedAt: DateTime.now(),
         );
         uploaded++;
       }
 
-      // ── Recover orphaned entry files not referenced by manifest ──
-      final remoteFiles = await _listRemoteEntryFiles(client, remoteRoot);
-      for (final file in remoteFiles) {
-        final fileName = file.name!;
-        final entryId = fileName.substring(0, fileName.length - '.json.gz'.length);
-        if (manifest.containsKey(entryId)) {
-          continue;
-        }
-        final filePath = '${_entryDir(remoteRoot)}/$fileName';
-        try {
-          final bytes = await client.read(filePath);
-          final decoded = utf8.decode(gzip.decode(bytes));
-          final map = jsonDecode(decoded) as Map<String, dynamic>;
-          final hydratedMap = await _materializeRemoteEntry(client, map, null);
-          final remoteEntry = DiaryEntry.fromSyncJson(hydratedMap);
-          await _diaryRepository.upsert(remoteEntry);
-          manifest[remoteEntry.id] = _ManifestItem(
-            id: remoteEntry.id,
-            path: filePath,
-            updatedAt: remoteEntry.updatedAt,
-            isDeleted: remoteEntry.isDeleted,
-          );
-          recovered++;
-        } catch (_) {
-          // Skip unreadable files.
-        }
-      }
+      // ── Download new / updated remote entries ────────────────────
+      for (final entry in remote.entries.values) {
+        final id = entry.payload.entry.id;
+        final local = await _diaryRepository.getById(id);
+        final state = syncStates[id] ?? _SyncState.empty;
 
-      // ── Download entries from manifest ───────────────────────────
-      final localHeads = await _diaryRepository.listSyncHeads();
-      final remoteItems = manifest.values.toList()
-        ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-
-      for (final item in remoteItems) {
-        final local = await _diaryRepository.getById(item.id);
-        final localUpdated = localHeads[item.id];
-        final upToDate =
-            localUpdated != null && !item.updatedAt.isAfter(localUpdated);
-        if (upToDate && !await _needsAttachmentHydration(local)) {
-          continue;
+        // Already synced this revision.
+        if (state.lastSyncedRevision == entry.payload.revision) {
+          if (!await _needsAttachmentHydration(local)) {
+            continue;
+          }
         }
 
-        final localDirty = local != null && local.updatedAt.isAfter(lastSync);
-        final remoteDirty = item.updatedAt.isAfter(lastSync);
+        // Check if local has unsynced changes.
         if (local != null &&
-            localDirty &&
-            remoteDirty &&
-            config.conflictStrategy == ConflictStrategy.keepBoth) {
-          await _diaryRepository.upsert(
-            local.copyWith(
-              id: const Uuid().v4(),
-              title: '${local.title} (冲突副本)',
-              updatedAt: now,
-            ),
-          );
-          conflicts++;
+            state.lastSyncedRevision.isNotEmpty &&
+            state.lastSyncedRevision != entry.payload.revision &&
+            state.contentFingerprint != _contentFingerprint(local)) {
+          // Both local and remote modified — conflict.
+          if (config.conflictStrategy == ConflictStrategy.keepBoth) {
+            await _diaryRepository.upsert(
+              local.copyWith(
+                id: const Uuid().v4(),
+                title: '${local.title} (冲突副本)',
+                updatedAt: DateTime.now(),
+              ),
+            );
+            conflicts++;
+          }
+          // For lastWriteWins, remote overwrites local silently.
         }
 
-        try {
-          final bytes = await client.read(item.path);
-          final decoded = utf8.decode(gzip.decode(bytes));
-          final map = jsonDecode(decoded) as Map<String, dynamic>;
-          final hydratedMap = await _materializeRemoteEntry(client, map, local);
-          final remoteEntry = DiaryEntry.fromSyncJson(hydratedMap);
-          await _diaryRepository.upsert(remoteEntry);
-          downloaded++;
-        } catch (_) {
-          // Skip entries whose remote file is missing / corrupted.
-          manifest.remove(item.id);
-        }
+        final raw = entry.payload.entry.toSyncJson()
+          ..['attachments'] =
+              entry.payload.entry.attachments.map((a) => a.toJson()).toList();
+        final hydrated = await _materializeRemoteEntry(
+          client,
+          raw,
+          local,
+        );
+        final readyEntry = DiaryEntry.fromSyncJson(hydrated)
+            .copyWith(updatedAt: entry.payload.updatedAt);
+        await _diaryRepository.upsert(readyEntry);
+        syncStates[id] = _SyncState(
+          lastSyncedRevision: entry.payload.revision,
+          contentFingerprint: entry.payload.contentFingerprint,
+          lastRemoteUpdatedAt: entry.modifiedAt,
+        );
+        downloaded++;
       }
 
+      // ── Apply remote tombstones ──────────────────────────────────
+      for (final entry in remote.tombstones.values) {
+        final id = entry.payload.id;
+        final local = await _diaryRepository.getById(id);
+        if (local == null) {
+          continue;
+        }
+        final state = syncStates[id] ?? _SyncState.empty;
+        if (_compareRevision(state.lastSyncedRevision, entry.payload.revision) >= 0) {
+          continue;
+        }
+        await _diaryRepository.deleteForever(id);
+        await _clearEntrySyncState(id);
+        syncStates.remove(id);
+      }
+
+      // ── Persist sync state and cleanup ───────────────────────────
       await _saveSyncStates(syncStates);
-      await _cleanupRemoteAttachmentGarbage(client, remoteRoot, remote.entries);
+      await _cleanupRemoteAttachmentGarbage(
+        client,
+        remoteRoot,
+        remote.entries,
+      );
       final now = DateTime.now();
       await _settingsRepository.saveLastSyncAt(now);
 
-      final message = recovered > 0
-          ? _l10n(
-              locale,
-              zh: '同步完成，恢复 $recovered 条日记',
-              en: 'Sync completed, recovered $recovered entries',
-            )
-          : _l10n(locale, zh: '同步完成', en: 'Sync completed');
       return SyncResult(
         success: true,
-        message: message,
+        message: _l10n(locale, zh: '同步完成', en: 'Sync completed'),
         uploaded: uploaded,
-        downloaded: downloaded + recovered,
+        downloaded: downloaded,
         conflicts: conflicts,
       );
     } catch (e) {
