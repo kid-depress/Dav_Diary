@@ -801,9 +801,10 @@ class SyncService {
       await client.mkdirAll(_attachmentDir(remoteRoot));
       await client.mkdirAll('${_attachmentDir(remoteRoot)}/thumbs');
 
-      final manifest = await _loadManifest(client, remoteRoot);
-      final pendingHardDeleteIds = await _settingsRepository
-          .loadPendingHardDeleteIds();
+      final manifest = await _tryLoadManifest(client, remoteRoot) ??
+          <String, _ManifestItem>{};
+      final pendingHardDeleteIds =
+          await _settingsRepository.loadPendingHardDeleteIds();
       final processedHardDeleteIds = <String>[];
       for (final id in pendingHardDeleteIds) {
         final removed = manifest.remove(id);
@@ -813,6 +814,7 @@ class SyncService {
         processedHardDeleteIds.add(id);
       }
 
+      // ── Upload local changes ─────────────────────────────────────
       final changedEntries = await _diaryRepository.listUpdatedAfter(lastSync);
       for (final entry in changedEntries) {
         final uploadedEntry = await _uploadEntry(client, remoteRoot, entry);
@@ -826,6 +828,35 @@ class SyncService {
         uploaded++;
       }
 
+      // ── Recover orphaned entry files not referenced by manifest ──
+      final remoteFiles = await _listRemoteEntryFiles(client, remoteRoot);
+      for (final file in remoteFiles) {
+        final fileName = file.name!;
+        final entryId = fileName.substring(0, fileName.length - '.json.gz'.length);
+        if (manifest.containsKey(entryId)) {
+          continue;
+        }
+        final filePath = '${_entryDir(remoteRoot)}/$fileName';
+        try {
+          final bytes = await client.read(filePath);
+          final decoded = utf8.decode(gzip.decode(bytes));
+          final map = jsonDecode(decoded) as Map<String, dynamic>;
+          final hydratedMap = await _materializeRemoteEntry(client, map, null);
+          final remoteEntry = DiaryEntry.fromSyncJson(hydratedMap);
+          await _diaryRepository.upsert(remoteEntry);
+          manifest[remoteEntry.id] = _ManifestItem(
+            id: remoteEntry.id,
+            path: filePath,
+            updatedAt: remoteEntry.updatedAt,
+            isDeleted: remoteEntry.isDeleted,
+          );
+          recovered++;
+        } catch (_) {
+          // Skip unreadable files.
+        }
+      }
+
+      // ── Download entries from manifest ───────────────────────────
       final localHeads = await _diaryRepository.listSyncHeads();
       final remoteItems = manifest.values.toList()
         ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
@@ -855,13 +886,18 @@ class SyncService {
           conflicts++;
         }
 
-        final bytes = await client.read(item.path);
-        final decoded = utf8.decode(gzip.decode(bytes));
-        final map = jsonDecode(decoded) as Map<String, dynamic>;
-        final hydratedMap = await _materializeRemoteEntry(client, map, local);
-        final remoteEntry = DiaryEntry.fromSyncJson(hydratedMap);
-        await _diaryRepository.upsert(remoteEntry);
-        downloaded++;
+        try {
+          final bytes = await client.read(item.path);
+          final decoded = utf8.decode(gzip.decode(bytes));
+          final map = jsonDecode(decoded) as Map<String, dynamic>;
+          final hydratedMap = await _materializeRemoteEntry(client, map, local);
+          final remoteEntry = DiaryEntry.fromSyncJson(hydratedMap);
+          await _diaryRepository.upsert(remoteEntry);
+          downloaded++;
+        } catch (_) {
+          // Skip entries whose remote file is missing / corrupted.
+          manifest.remove(item.id);
+        }
       }
 
       await _saveSyncStates(syncStates);
