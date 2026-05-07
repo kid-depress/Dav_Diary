@@ -239,7 +239,7 @@ class DiaryAppState extends ChangeNotifier {
   Future<SyncResult> syncNow() async {
     _syncing = true;
     notifyListeners();
-    final result = await _syncService.syncNow();
+    final result = await _syncService.syncNow(locale: _locale);
     _lastSyncAt = await _settingsRepository.loadLastSyncAt();
     _syncing = false;
     await refreshEntries();

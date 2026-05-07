@@ -40,20 +40,24 @@ class WebDavConfig {
     return {
       'serverUrl': serverUrl,
       'username': username,
-      'password': password,
       'remoteDir': remoteDir,
       'conflictStrategy': conflictStrategy.name,
     };
   }
 
-  static WebDavConfig fromJson(Map<String, dynamic> json) {
+  static WebDavConfig fromJson(
+    Map<String, dynamic> json, {
+    String password = '',
+  }) {
     final strategyValue =
         (json['conflictStrategy'] ?? ConflictStrategy.lastWriteWins.name)
             as String;
     return WebDavConfig(
       serverUrl: (json['serverUrl'] ?? '') as String,
       username: (json['username'] ?? '') as String,
-      password: (json['password'] ?? '') as String,
+      password: password.isNotEmpty
+          ? password
+          : (json['password'] ?? '') as String,
       remoteDir: (json['remoteDir'] ?? '/diary') as String,
       conflictStrategy: ConflictStrategy.values.firstWhere(
         (item) => item.name == strategyValue,

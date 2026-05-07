@@ -30,8 +30,8 @@ class _DiaryAppBootstrapState extends State<DiaryAppBootstrap> {
     final diaryRepository = DiaryRepository(AppDatabase.instance);
     final settingsRepository = SettingsRepository();
     final syncService = SyncService(diaryRepository, settingsRepository);
-    final storageService = const StorageService();
-    final dailyQuoteService = const DailyQuoteService();
+    const storageService = StorageService();
+    const dailyQuoteService = DailyQuoteService();
     _appState = DiaryAppState(
       diaryRepository: diaryRepository,
       settingsRepository: settingsRepository,

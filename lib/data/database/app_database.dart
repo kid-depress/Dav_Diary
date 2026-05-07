@@ -8,14 +8,24 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   Database? _database;
+  Future<Database>? _openFuture;
 
   Future<Database> get database async {
     final existing = _database;
     if (existing != null) {
       return existing;
     }
-    _database = await _open();
-    return _database!;
+    final pending = _openFuture;
+    if (pending != null) {
+      return pending;
+    }
+    _openFuture = _open().then((db) {
+      _database = db;
+      return db;
+    }).whenComplete(() {
+      _openFuture = null;
+    });
+    return _openFuture!;
   }
 
   Future<Database> _open() async {

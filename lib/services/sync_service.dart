@@ -8,6 +8,7 @@ import 'package:diary/data/models/webdav_config.dart';
 import 'package:diary/data/repositories/diary_repository.dart';
 import 'package:diary/data/repositories/settings_repository.dart';
 import 'package:diary/services/storage_service.dart';
+import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 import 'package:webdav_client/webdav_client.dart' as webdav;
@@ -142,20 +143,44 @@ class SyncService {
     webdav.Client client,
     String remoteRoot,
   ) async {
-    try {
-      final bytes = await client.read(_manifestPath(remoteRoot));
-      final decoded = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
-      final list = (decoded['entries'] ?? <dynamic>[]) as List<dynamic>;
-      final result = <String, _ManifestItem>{};
-      for (final item in list.whereType<Map<String, dynamic>>()) {
-        final parsed = _ManifestItem.fromJson(item);
-        if (parsed.id.isNotEmpty && parsed.path.isNotEmpty) {
-          result[parsed.id] = parsed;
-        }
+    final bytes = await client.read(_manifestPath(remoteRoot));
+    final decoded = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
+    final list = (decoded['entries'] ?? <dynamic>[]) as List<dynamic>;
+    final result = <String, _ManifestItem>{};
+    for (final item in list.whereType<Map<String, dynamic>>()) {
+      final parsed = _ManifestItem.fromJson(item);
+      if (parsed.id.isNotEmpty && parsed.path.isNotEmpty) {
+        result[parsed.id] = parsed;
       }
-      return result;
+    }
+    return result;
+  }
+
+  /// Returns null when the manifest cannot be read (network error, not found, etc.).
+  Future<Map<String, _ManifestItem>?> _tryLoadManifest(
+    webdav.Client client,
+    String remoteRoot,
+  ) async {
+    try {
+      return await _loadManifest(client, remoteRoot);
     } catch (_) {
-      return <String, _ManifestItem>{};
+      return null;
+    }
+  }
+
+  /// Lists .json.gz entry files in the remote entries directory.
+  Future<List<webdav.File>> _listRemoteEntryFiles(
+    webdav.Client client,
+    String remoteRoot,
+  ) async {
+    try {
+      final dir = _entryDir(remoteRoot);
+      final items = await client.readDir(dir);
+      return items
+          .where((f) => f.name != null && f.name!.endsWith('.json.gz'))
+          .toList();
+    } catch (_) {
+      return <webdav.File>[];
     }
   }
 
@@ -423,10 +448,17 @@ class SyncService {
     );
   }
 
-  Future<SyncResult> syncNow() async {
+  Future<SyncResult> syncNow({Locale locale = const Locale('zh', 'CN')}) async {
     final config = await _settingsRepository.loadWebDavConfig();
     if (!config.isConfigured) {
-      return const SyncResult(success: false, message: '请先完成 WebDAV 配置');
+      return SyncResult(
+        success: false,
+        message: _l10n(
+          locale,
+          zh: '请先完成 WebDAV 配置',
+          en: 'Please configure WebDAV first',
+        ),
+      );
     }
 
     final client = _buildClient(config);
@@ -439,6 +471,7 @@ class SyncService {
     int uploaded = 0;
     int downloaded = 0;
     int conflicts = 0;
+    int recovered = 0;
 
     try {
       await client.ping();
@@ -446,9 +479,10 @@ class SyncService {
       await client.mkdirAll(_attachmentDir(remoteRoot));
       await client.mkdirAll('${_attachmentDir(remoteRoot)}/thumbs');
 
-      final manifest = await _loadManifest(client, remoteRoot);
-      final pendingHardDeleteIds = await _settingsRepository
-          .loadPendingHardDeleteIds();
+      final manifest = await _tryLoadManifest(client, remoteRoot) ??
+          <String, _ManifestItem>{};
+      final pendingHardDeleteIds =
+          await _settingsRepository.loadPendingHardDeleteIds();
       final processedHardDeleteIds = <String>[];
       for (final id in pendingHardDeleteIds) {
         final removed = manifest.remove(id);
@@ -458,6 +492,7 @@ class SyncService {
         processedHardDeleteIds.add(id);
       }
 
+      // ── Upload local changes ─────────────────────────────────────
       final changedEntries = await _diaryRepository.listUpdatedAfter(lastSync);
       for (final entry in changedEntries) {
         final uploadedEntry = await _uploadEntry(client, remoteRoot, entry);
@@ -471,6 +506,35 @@ class SyncService {
         uploaded++;
       }
 
+      // ── Recover orphaned entry files not referenced by manifest ──
+      final remoteFiles = await _listRemoteEntryFiles(client, remoteRoot);
+      for (final file in remoteFiles) {
+        final fileName = file.name!;
+        final entryId = fileName.substring(0, fileName.length - '.json.gz'.length);
+        if (manifest.containsKey(entryId)) {
+          continue;
+        }
+        final filePath = '${_entryDir(remoteRoot)}/$fileName';
+        try {
+          final bytes = await client.read(filePath);
+          final decoded = utf8.decode(gzip.decode(bytes));
+          final map = jsonDecode(decoded) as Map<String, dynamic>;
+          final hydratedMap = await _materializeRemoteEntry(client, map, null);
+          final remoteEntry = DiaryEntry.fromSyncJson(hydratedMap);
+          await _diaryRepository.upsert(remoteEntry);
+          manifest[remoteEntry.id] = _ManifestItem(
+            id: remoteEntry.id,
+            path: filePath,
+            updatedAt: remoteEntry.updatedAt,
+            isDeleted: remoteEntry.isDeleted,
+          );
+          recovered++;
+        } catch (_) {
+          // Skip unreadable files.
+        }
+      }
+
+      // ── Download entries from manifest ───────────────────────────
       final localHeads = await _diaryRepository.listSyncHeads();
       final remoteItems = manifest.values.toList()
         ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
@@ -500,13 +564,18 @@ class SyncService {
           conflicts++;
         }
 
-        final bytes = await client.read(item.path);
-        final decoded = utf8.decode(gzip.decode(bytes));
-        final map = jsonDecode(decoded) as Map<String, dynamic>;
-        final hydratedMap = await _materializeRemoteEntry(client, map, local);
-        final remoteEntry = DiaryEntry.fromSyncJson(hydratedMap);
-        await _diaryRepository.upsert(remoteEntry);
-        downloaded++;
+        try {
+          final bytes = await client.read(item.path);
+          final decoded = utf8.decode(gzip.decode(bytes));
+          final map = jsonDecode(decoded) as Map<String, dynamic>;
+          final hydratedMap = await _materializeRemoteEntry(client, map, local);
+          final remoteEntry = DiaryEntry.fromSyncJson(hydratedMap);
+          await _diaryRepository.upsert(remoteEntry);
+          downloaded++;
+        } catch (_) {
+          // Skip entries whose remote file is missing / corrupted.
+          manifest.remove(item.id);
+        }
       }
 
       await _reconcileEntriesMissingFromManifest(manifest, lastSync);
@@ -517,21 +586,37 @@ class SyncService {
         await _settingsRepository.savePendingHardDeleteIds(pendingSet.toList());
       }
       await _settingsRepository.saveLastSyncAt(now);
+
+      final message = recovered > 0
+          ? _l10n(
+              locale,
+              zh: '同步完成，恢复 $recovered 条日记',
+              en: 'Sync completed, recovered $recovered entries',
+            )
+          : _l10n(locale, zh: '同步完成', en: 'Sync completed');
       return SyncResult(
         success: true,
-        message: '同步完成',
+        message: message,
         uploaded: uploaded,
-        downloaded: downloaded,
+        downloaded: downloaded + recovered,
         conflicts: conflicts,
       );
     } catch (e) {
       return SyncResult(
         success: false,
-        message: '同步失败: $e',
+        message: _l10n(
+          locale,
+          zh: '同步失败: $e',
+          en: 'Sync failed: $e',
+        ),
         uploaded: uploaded,
         downloaded: downloaded,
         conflicts: conflicts,
       );
     }
+  }
+
+  String _l10n(Locale locale, {required String zh, required String en}) {
+    return locale.languageCode.toLowerCase() == 'zh' ? zh : en;
   }
 }

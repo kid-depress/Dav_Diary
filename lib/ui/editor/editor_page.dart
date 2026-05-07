@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -403,7 +404,7 @@ class _EditorPageState extends State<EditorPage> {
   }
 
   void _toggleAttribute(Attribute attribute) {
-    HapticFeedback.lightImpact();
+    unawaited(HapticFeedback.lightImpact());
     final enabled = _isAttributeEnabled(attribute);
     _quillController.formatSelection(
       enabled ? Attribute.clone(attribute, null) : attribute,
@@ -412,13 +413,13 @@ class _EditorPageState extends State<EditorPage> {
   }
 
   void _setHeader(Attribute<int?> header) {
-    HapticFeedback.lightImpact();
+    unawaited(HapticFeedback.lightImpact());
     _quillController.formatSelection(header);
     setState(() {});
   }
 
   void _setAlign(Attribute<String?> alignment) {
-    HapticFeedback.lightImpact();
+    unawaited(HapticFeedback.lightImpact());
     _quillController.formatSelection(alignment);
     setState(() {});
   }
@@ -463,7 +464,7 @@ class _EditorPageState extends State<EditorPage> {
     if (!mounted) {
       return;
     }
-    HapticFeedback.lightImpact();
+    unawaited(HapticFeedback.lightImpact());
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(tr(context, zh: '日记已保存', en: 'Saved')),
@@ -639,7 +640,7 @@ class _EditorPageState extends State<EditorPage> {
       child: IconButton(
         tooltip: tooltip,
         onPressed: () {
-          HapticFeedback.lightImpact();
+          unawaited(HapticFeedback.lightImpact());
           onTap();
         },
         icon: Icon(icon, color: color),

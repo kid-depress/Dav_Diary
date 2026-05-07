@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter test *)",
+      "Bash(flutter analyze *)",
+      "Bash(cd d:/project/Dav_Diary && grep -r \"class Client\\\\|readDir\\\\|listDir\\\\|list\\(\" .dart_tool/package_config.json 2>/dev/null; grep -r \"readDir\\\\|listDir\\\\|void read\\\\|Future.*read\\\\|Future.*list\" ~/.pub-cache/hosted/pub.dev/webdav_client-* 2>/dev/null | head -20 || find ~/.pub-cache/hosted/pub.dev/ -path \"*webdav_client*\" -name \"*.dart\" 2>/dev/null | head -5)",
+      "Read(//c/Users/34689/.pub-cache/hosted/**)",
+      "Bash(find /c/Users/34689/.pub-cache/hosted/pub.dev/ -path \"*webdav*\" -type d 2>/dev/null || find /c/Users/34689/AppData/Local/Pub/Cache/hosted/pub.dev/ -path \"*webdav*\" -type d 2>/dev/null)",
+      "Read(//c/Users/34689/AppData/Local/Pub/Cache/hosted/pub.dev//**)"
+    ]
+  }
+}

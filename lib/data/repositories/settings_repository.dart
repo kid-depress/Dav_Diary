@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:diary/data/credential_store.dart';
 import 'package:diary/data/models/webdav_config.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -82,16 +83,19 @@ class SettingsRepository {
   Future<WebDavConfig> loadWebDavConfig() async {
     final prefs = await _prefs;
     final raw = prefs.getString(_keyWebDavConfig);
+    final password = await CredentialStore.loadPassword();
     if (raw == null || raw.isEmpty) {
-      return const WebDavConfig();
+      return WebDavConfig(password: password);
     }
     final map = jsonDecode(raw) as Map<String, dynamic>;
-    return WebDavConfig.fromJson(map);
+    return WebDavConfig.fromJson(map, password: password);
   }
 
   Future<void> saveWebDavConfig(WebDavConfig config) async {
     final prefs = await _prefs;
-    await prefs.setString(_keyWebDavConfig, jsonEncode(config.toJson()));
+    final safeJson = jsonEncode(config.toJson());
+    await prefs.setString(_keyWebDavConfig, safeJson);
+    await CredentialStore.savePassword(config.password);
   }
 
   Future<DateTime?> loadLastSyncAt() async {
