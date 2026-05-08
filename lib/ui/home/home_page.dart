@@ -318,7 +318,7 @@ class _GridEntryCard extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          DateFormat('yyyy/M/d HH:mm:ss').format(entry.eventAt),
+                          DateFormat(hasMeta ? 'yyyy/M/d' : 'yyyy/M/d HH:mm:ss').format(entry.eventAt),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.labelLarge
