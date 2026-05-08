@@ -34,9 +34,9 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  static const _minGridCardWidth = 156.0;
-  static const _maxGridColumns = 6;
-  static const _gridSpacing = 10.0;
+  static const _minGridCardWidth = 144.0;
+  static const _maxGridColumns = 5;
+  static const _gridSpacing = 8.0;
   final ScrollController _scrollController = ScrollController();
   late int _handledScrollToTopSignal;
 
@@ -135,9 +135,9 @@ class _HomePageState extends State<HomePage> {
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(
                 _gridSpacing,
-                16,
+                12,
                 _gridSpacing,
-                136,
+                120,
               ),
               sliver: SliverMasonryGrid.count(
                 crossAxisCount: columns,
@@ -243,7 +243,7 @@ class _GridEntryCard extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       color: colors.surfaceContainerLow,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
@@ -253,7 +253,7 @@ class _GridEntryCard extends StatelessWidget {
           children: [
             if (hasImage)
               AspectRatio(
-                aspectRatio: 1.12,
+                aspectRatio: 1.0,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
@@ -283,7 +283,7 @@ class _GridEntryCard extends StatelessWidget {
                 ),
               ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -291,7 +291,7 @@ class _GridEntryCard extends StatelessWidget {
                   if (hasBodyText)
                     Text(
                       previewText,
-                      maxLines: hasImage ? 4 : 6,
+                      maxLines: hasImage ? 3 : 5,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         height: 1.34,
@@ -301,7 +301,7 @@ class _GridEntryCard extends StatelessWidget {
                       ),
                     ),
                   if (hasLocation) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     Text(
                       entry.location.trim(),
                       maxLines: 1,
@@ -309,11 +309,11 @@ class _GridEntryCard extends StatelessWidget {
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: colors.onSurfaceVariant.withValues(alpha: 0.86),
                         fontWeight: FontWeight.w400,
-                        fontSize: 12,
+                        fontSize: 11,
                       ),
                     ),
                   ],
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   Row(
                     children: [
                       Expanded(
@@ -328,7 +328,7 @@ class _GridEntryCard extends StatelessWidget {
                                   alpha: 0.86,
                                 ),
                                 fontWeight: FontWeight.w400,
-                                fontSize: 12.5,
+                                fontSize: 12,
                               ),
                         ),
                       ),
@@ -392,14 +392,14 @@ class _EntryMetaTag extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Container(
-        width: 28,
-        height: 28,
+        width: 24,
+        height: 24,
         decoration: BoxDecoration(
           color: colors.secondaryContainer.withValues(alpha: 0.72),
           borderRadius: BorderRadius.circular(999),
         ),
         alignment: Alignment.center,
-        child: Icon(icon, size: 16, color: colors.onSecondaryContainer),
+        child: Icon(icon, size: 14, color: colors.onSecondaryContainer),
       ),
     );
   }
