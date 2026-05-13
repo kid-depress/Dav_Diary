@@ -190,18 +190,21 @@ class _ManifestEntry {
     required this.path,
     required this.revision,
     required this.contentFingerprint,
+    this.attachmentRefs = const <String>[],
   });
 
   final String id;
   final String path;
   final String revision;
   final String contentFingerprint;
+  final List<String> attachmentRefs;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
     'id': id,
     'path': path,
     'revision': revision,
     'contentFingerprint': contentFingerprint,
+    if (attachmentRefs.isNotEmpty) 'attachmentRefs': attachmentRefs,
   };
 
   static _ManifestEntry fromJson(Map<String, dynamic> json) {
@@ -210,6 +213,10 @@ class _ManifestEntry {
       path: (json['path'] ?? '') as String,
       revision: (json['revision'] ?? '') as String,
       contentFingerprint: (json['contentFingerprint'] ?? '') as String,
+      attachmentRefs: (json['attachmentRefs'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const <String>[],
     );
   }
 }
@@ -507,6 +514,7 @@ class SyncService {
             path: path,
             revision: envelope.revision,
             contentFingerprint: envelope.contentFingerprint,
+            attachmentRefs: _collectAttachmentRefs(envelope.entry),
           );
         } catch (_) {
           // Skip unreadable files.
@@ -769,6 +777,11 @@ class SyncService {
   ) async {
     final result = <String>{};
     for (final me in entries.values) {
+      if (me.attachmentRefs.isNotEmpty) {
+        result.addAll(me.attachmentRefs);
+        continue;
+      }
+      // Backward compat: manifest entry without attachmentRefs.
       try {
         final envelope = await _downloadRemoteEntry(client, remoteRoot, me);
         for (final attachment in envelope.entry.attachments) {
@@ -786,6 +799,19 @@ class SyncService {
       }
     }
     return result;
+  }
+
+  List<String> _collectAttachmentRefs(DiaryEntry entry) {
+    final refs = <String>[];
+    for (final a in entry.attachments) {
+      if (a.remotePath.isNotEmpty) {
+        refs.add(a.remotePath);
+      }
+      if (a.thumbnailRemotePath.isNotEmpty) {
+        refs.add(a.thumbnailRemotePath);
+      }
+    }
+    return refs;
   }
 
   Future<void> _cleanupRemoteAttachmentGarbage(
@@ -924,6 +950,8 @@ class SyncService {
       await client.ping();
       await _ensureRemoteLayout(client, remoteRoot);
 
+      final syncStartTime = DateTime.now();
+
       // ── Load remote manifest (lightweight index) ──────────────────
       final manifest = await _loadRemoteManifest(client, remoteRoot);
 
@@ -953,14 +981,24 @@ class SyncService {
         await _settingsRepository.savePendingHardDeleteRecords(remaining);
       }
 
-      // ── Build combined entry set ─────────────────────────────────
-      final localAll = await _diaryRepository.listAll();
+      // ── Build combined entry set (lightweight) ────────────────────
+      final localHeads = await _diaryRepository.listSyncHeads();
+      final lastSyncAt = await _settingsRepository.loadLastSyncAt();
+
+      // Only load entries that changed since last sync.
+      final List<DiaryEntry> changedLocal;
+      if (lastSyncAt != null) {
+        changedLocal = await _diaryRepository.listUpdatedAfter(lastSyncAt);
+      } else {
+        changedLocal = await _diaryRepository.listAll();
+      }
       final localMap = <String, DiaryEntry>{};
-      for (final entry in localAll) {
+      for (final entry in changedLocal) {
         localMap[entry.id] = entry;
       }
+
       final allIds = <String>{
-        ...localMap.keys,
+        ...localHeads.keys,
         ...manifest.entries.keys,
       };
       final syncStates = <String, _SyncState>{};
@@ -970,12 +1008,12 @@ class SyncService {
 
       // ── Single reconciliation pass ───────────────────────────────
       for (final id in allIds) {
-        final local = localMap[id];
+        DiaryEntry? local = localMap[id];
+        final existsLocally = localHeads.containsKey(id);
         final state = syncStates[id] ?? _SyncState.empty;
         final me = manifest.entries[id];
 
-        // Entry was hard-deleted locally and tombstone already written.
-        if (local == null && me == null) {
+        if (!existsLocally && me == null) {
           syncStates.remove(id);
           continue;
         }
@@ -996,8 +1034,11 @@ class SyncService {
               contentFingerprint: localFingerprint,
             );
           }
-          if (local != null && me == null && state.isInitialized) {
-            // Local entry exists but missing from manifest — upload needed.
+          if (existsLocally && me == null && state.isInitialized) {
+            local ??= await _diaryRepository.getById(id);
+            if (local == null) {
+              continue;
+            }
             final revision = await _newRevisionString();
             final envelope = await _uploadEntry(
               client,
@@ -1005,15 +1046,17 @@ class SyncService {
               local,
               revision: revision,
             );
+            final refs = _collectAttachmentRefs(envelope.entry);
             manifest.entries[id] = _ManifestEntry(
               id: id,
               path: _entryPath(remoteRoot, id),
               revision: revision,
               contentFingerprint: envelope.contentFingerprint,
+              attachmentRefs: refs,
             );
             syncStates[id] = _SyncState(
               lastSyncedRevision: revision,
-              contentFingerprint: localFingerprint,
+              contentFingerprint: _contentFingerprint(local),
               lastRemoteUpdatedAt: DateTime.now(),
             );
             uploaded++;
@@ -1030,11 +1073,13 @@ class SyncService {
             local,
             revision: revision,
           );
+          final refs = _collectAttachmentRefs(envelope.entry);
           manifest.entries[id] = _ManifestEntry(
             id: id,
             path: _entryPath(remoteRoot, id),
             revision: revision,
             contentFingerprint: envelope.contentFingerprint,
+            attachmentRefs: refs,
           );
           syncStates[id] = _SyncState(
             lastSyncedRevision: revision,
@@ -1047,37 +1092,30 @@ class SyncService {
 
         // ── Only remote changed ──────────────────────────────────
         if (!localChanged && remoteChanged) {
-          if (local != null) {
-            // Remote changed but local unchanged — safe to overwrite.
-            final envelope = await _downloadRemoteEntry(client, remoteRoot, me);
-            final raw = envelope.entry.toSyncJson()
-              ..['attachments'] =
-                  envelope.entry.attachments.map((a) => a.toJson()).toList();
-            final hydrated = await _materializeRemoteEntry(client, raw, local);
-            final readyEntry = DiaryEntry.fromSyncJson(hydrated)
-                .copyWith(updatedAt: envelope.updatedAt);
-            await _diaryRepository.upsert(readyEntry);
-            syncStates[id] = _SyncState(
-              lastSyncedRevision: me.revision,
-              contentFingerprint: me.contentFingerprint,
-            );
-            downloaded++;
-          } else {
-            // New entry from remote — download and insert.
-            final envelope = await _downloadRemoteEntry(client, remoteRoot, me);
-            final raw = envelope.entry.toSyncJson()
-              ..['attachments'] =
-                  envelope.entry.attachments.map((a) => a.toJson()).toList();
-            final hydrated = await _materializeRemoteEntry(client, raw, null);
-            final readyEntry = DiaryEntry.fromSyncJson(hydrated)
-                .copyWith(updatedAt: envelope.updatedAt);
-            await _diaryRepository.upsert(readyEntry);
-            syncStates[id] = _SyncState(
-              lastSyncedRevision: me.revision,
-              contentFingerprint: me.contentFingerprint,
-            );
-            downloaded++;
+          final envelope = await _downloadRemoteEntry(client, remoteRoot, me);
+          final raw = envelope.entry.toSyncJson()
+            ..['attachments'] =
+                envelope.entry.attachments.map((a) => a.toJson()).toList();
+          if (existsLocally && local == null) {
+            local = await _diaryRepository.getById(id);
           }
+          final hydrated = await _materializeRemoteEntry(client, raw, local);
+          final readyEntry = DiaryEntry.fromSyncJson(hydrated)
+              .copyWith(updatedAt: envelope.updatedAt);
+          await _diaryRepository.upsert(readyEntry);
+          final refs = _collectAttachmentRefs(envelope.entry);
+          manifest.entries[id] = _ManifestEntry(
+            id: id,
+            path: _entryPath(remoteRoot, id),
+            revision: me.revision,
+            contentFingerprint: me.contentFingerprint,
+            attachmentRefs: refs,
+          );
+          syncStates[id] = _SyncState(
+            lastSyncedRevision: me.revision,
+            contentFingerprint: me.contentFingerprint,
+          );
+          downloaded++;
           continue;
         }
 
@@ -1093,7 +1131,6 @@ class SyncService {
             );
             conflicts++;
           }
-          // Remote wins — download and overwrite.
           final envelope = await _downloadRemoteEntry(client, remoteRoot, me);
           final raw = envelope.entry.toSyncJson()
             ..['attachments'] =
@@ -1102,6 +1139,14 @@ class SyncService {
           final readyEntry = DiaryEntry.fromSyncJson(hydrated)
               .copyWith(updatedAt: envelope.updatedAt);
           await _diaryRepository.upsert(readyEntry);
+          final refs = _collectAttachmentRefs(envelope.entry);
+          manifest.entries[id] = _ManifestEntry(
+            id: id,
+            path: _entryPath(remoteRoot, id),
+            revision: me.revision,
+            contentFingerprint: me.contentFingerprint,
+            attachmentRefs: refs,
+          );
           syncStates[id] = _SyncState(
             lastSyncedRevision: me.revision,
             contentFingerprint: me.contentFingerprint,
@@ -1114,8 +1159,7 @@ class SyncService {
       // ── Apply remote tombstones ──────────────────────────────────
       for (final entry in manifest.tombstones.values) {
         final id = entry.payload.id;
-        final local = localMap[id];
-        if (local == null) {
+        if (!localHeads.containsKey(id)) {
           continue;
         }
         final state = syncStates[id] ?? _SyncState.empty;
@@ -1135,8 +1179,7 @@ class SyncService {
         remoteRoot,
         manifest.entries,
       );
-      final now = DateTime.now();
-      await _settingsRepository.saveLastSyncAt(now);
+      await _settingsRepository.saveLastSyncAt(syncStartTime);
 
       return SyncResult(
         success: true,
