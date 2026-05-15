@@ -228,21 +228,7 @@ class _RemoteManifest {
   });
 
   final Map<String, _ManifestEntry> entries;
-  final Map<String, _RemoteFile<_TombstoneRecord>> tombstones;
-}
-
-class _RemoteFile<T> {
-  const _RemoteFile({
-    required this.path,
-    required this.payload,
-    required this.modifiedAt,
-    required this.eTag,
-  });
-
-  final String path;
-  final T payload;
-  final DateTime modifiedAt;
-  final String eTag;
+  final Map<String, _TombstoneRecord> tombstones;
 }
 
 class _PendingHardDelete {
@@ -291,9 +277,9 @@ class SyncService {
       password: config.password.trim(),
       debug: false,
     );
-    client.setConnectTimeout(10000);
-    client.setSendTimeout(10000);
-    client.setReceiveTimeout(10000);
+    client.setConnectTimeout(5000);
+    client.setSendTimeout(5000);
+    client.setReceiveTimeout(5000);
     client.setHeaders({'accept-charset': 'utf-8'});
     return client;
   }
@@ -312,8 +298,6 @@ class SyncService {
   String _tombstoneDir(String root) => '$root/tombstones';
 
   String _entryPath(String root, String id) => '${_entryDir(root)}/$id.json.gz';
-  String _tombstonePath(String root, String id) =>
-      '${_tombstoneDir(root)}/$id.json';
 
   Future<void> markEntryHardDeleted(String id) async {
     final local = await _diaryRepository.getById(id);
@@ -338,6 +322,39 @@ class SyncService {
     for (final id in ids) {
       await markEntryHardDeleted(id);
     }
+  }
+
+  Future<T> _retryWithBackoff<T>(
+    Future<T> Function() operation, {
+    int maxAttempts = 3,
+    int baseDelayMs = 300,
+  }) async {
+    var attempt = 0;
+    while (true) {
+      attempt++;
+      try {
+        return await operation();
+      } catch (e) {
+        if (attempt >= maxAttempts || _isPermanentError(e)) {
+          rethrow;
+        }
+        final delay = baseDelayMs * (1 << (attempt - 1));
+        await Future<void>.delayed(Duration(milliseconds: delay));
+      }
+    }
+  }
+
+  bool _isPermanentError(Object e) {
+    final msg = e.toString().toLowerCase();
+    if (msg.contains('401') || msg.contains('403') || msg.contains('404') ||
+        msg.contains('409')) {
+      return true;
+    }
+    if (msg.contains('not found') || msg.contains('unauthorized') ||
+        msg.contains('forbidden') || msg.contains('not a directory')) {
+      return true;
+    }
+    return false;
   }
 
   int _compareRevision(String a, String b) {
@@ -411,13 +428,17 @@ class SyncService {
     return id;
   }
 
-  Future<_SyncState> _loadSyncStateForEntry(String id) async {
-    final states = await _settingsRepository.loadEntrySyncStates();
+  _SyncState _parseSyncState(Map<String, dynamic> states, String id) {
     final raw = states[id];
     if (raw is! Map<String, dynamic>) {
       return _SyncState.empty;
     }
     return _SyncState.fromJson(raw);
+  }
+
+  Future<_SyncState> _loadSyncStateForEntry(String id) async {
+    final states = await _settingsRepository.loadEntrySyncStates();
+    return _parseSyncState(states, id);
   }
 
   Future<void> _clearEntrySyncState(String id) async {
@@ -469,12 +490,14 @@ class SyncService {
     String remoteRoot,
   ) async {
     final entries = <String, _ManifestEntry>{};
-    final tombstones = <String, _RemoteFile<_TombstoneRecord>>{};
+    final tombstones = <String, _TombstoneRecord>{};
+    var manifestVersion = 0;
 
-    // ── Load manifest index (lightweight) ──────────────────────────
+    // ── Load manifest index ─────────────────────────────────────────
     try {
       final bytes = await client.read(_manifestPath(remoteRoot));
       final decoded = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
+      manifestVersion = (decoded['version'] ?? 0) as int;
       final list = (decoded['entries'] ?? <dynamic>[]) as List<dynamic>;
       for (final item in list.whereType<Map<String, dynamic>>()) {
         final me = _ManifestEntry.fromJson(item);
@@ -482,79 +505,79 @@ class SyncService {
           entries[me.id] = me;
         }
       }
+      // ── Load tombstones from manifest (v2+) ──────────────────────
+      if (manifestVersion >= 2) {
+        final tsList = (decoded['tombstones'] ?? <dynamic>[]) as List<dynamic>;
+        for (final item in tsList.whereType<Map<String, dynamic>>()) {
+          final record = _TombstoneRecord.fromJson(item);
+          if (record.id.trim().isNotEmpty) {
+            final existing = tombstones[record.id];
+            if (existing == null ||
+                _compareRevision(existing.revision, record.revision) < 0) {
+              tombstones[record.id] = record;
+            }
+          }
+        }
+      }
     } catch (_) {
-      // Manifest missing or corrupted — will be rebuilt.
+      // Manifest missing or corrupted — rebuild from directory scan.
     }
 
-    // ── Scan entry files for orphan recovery ───────────────────────
-    try {
-      final listing = await client.readDir(_entryDir(remoteRoot));
-      for (final item in listing) {
-        if (item.isDir == true || !(item.name ?? '').endsWith('.json.gz')) {
-          continue;
-        }
-        final path = item.path ?? '';
-        if (path.isEmpty) {
-          continue;
-        }
-        final id = item.name!.substring(
-          0,
-          item.name!.length - '.json.gz'.length,
-        );
-        if (id.isEmpty || entries.containsKey(id)) {
-          continue;
-        }
-        // Orphaned file — recover into manifest.
-        try {
-          final decoded = utf8.decode(gzip.decode(await client.read(path)));
-          final json = jsonDecode(decoded) as Map<String, dynamic>;
-          final envelope = _EntryEnvelope.fromJson(json);
-          entries[id] = _ManifestEntry(
-            id: id,
-            path: path,
-            revision: envelope.revision,
-            contentFingerprint: envelope.contentFingerprint,
-            attachmentRefs: _collectAttachmentRefs(envelope.entry),
+    // ── Orphan recovery: only when manifest is missing ────────────
+    if (manifestVersion == 0) {
+      try {
+        final listing = await client.readDir(_entryDir(remoteRoot));
+        for (final item in listing) {
+          if (item.isDir == true || !(item.name ?? '').endsWith('.json.gz')) {
+            continue;
+          }
+          final path = item.path ?? '';
+          if (path.isEmpty) continue;
+          final id = item.name!.substring(
+            0,
+            item.name!.length - '.json.gz'.length,
           );
-        } catch (_) {
-          // Skip unreadable files.
+          if (id.isEmpty || entries.containsKey(id)) continue;
+          try {
+            final decoded = utf8.decode(gzip.decode(await client.read(path)));
+            final json = jsonDecode(decoded) as Map<String, dynamic>;
+            final envelope = _EntryEnvelope.fromJson(json);
+            entries[id] = _ManifestEntry(
+              id: id,
+              path: path,
+              revision: envelope.revision,
+              contentFingerprint: envelope.contentFingerprint,
+              attachmentRefs: _collectAttachmentRefs(envelope.entry),
+            );
+          } catch (_) {}
         }
-      }
-    } catch (_) {
-      // Directory listing failed — non-fatal.
+      } catch (_) {}
     }
 
-    // ── Load tombstones ────────────────────────────────────────────
-    try {
-      final listing = await client.readDir(_tombstoneDir(remoteRoot));
-      for (final item in listing) {
-        if (item.isDir == true || !(item.name ?? '').endsWith('.json')) {
-          continue;
+    // ── Backward compat: load legacy tombstone files (v1) ─────────
+    if (manifestVersion < 2) {
+      try {
+        final listing = await client.readDir(_tombstoneDir(remoteRoot));
+        for (final item in listing) {
+          if (item.isDir == true || !(item.name ?? '').endsWith('.json')) {
+            continue;
+          }
+          final path = item.path ?? '';
+          if (path.isEmpty) continue;
+          try {
+            final json = jsonDecode(utf8.decode(await client.read(path)))
+                as Map<String, dynamic>;
+            final record = _TombstoneRecord.fromJson(json);
+            if (record.id.trim().isEmpty) continue;
+            final existing = tombstones[record.id];
+            if (existing != null &&
+                _compareRevision(existing.revision, record.revision) >= 0) {
+              continue;
+            }
+            tombstones[record.id] = record;
+          } catch (_) {}
         }
-        final path = item.path ?? '';
-        if (path.isEmpty) {
-          continue;
-        }
-        final json = jsonDecode(utf8.decode(await client.read(path)))
-            as Map<String, dynamic>;
-        final record = _TombstoneRecord.fromJson(json);
-        if (record.id.trim().isEmpty) {
-          continue;
-        }
-        final current = tombstones[record.id];
-        if (current != null &&
-            _compareRevision(current.payload.revision, record.revision) >= 0) {
-          continue;
-        }
-        tombstones[record.id] = _RemoteFile<_TombstoneRecord>(
-          path: path,
-          payload: record,
-          modifiedAt: item.mTime ?? record.deletedAt,
-          eTag: item.eTag ?? '',
-        );
-      }
-    } catch (_) {
-      // Tombstone listing failed — non-fatal.
+      } catch (_) {}
     }
 
     return _RemoteManifest(entries: entries, tombstones: tombstones);
@@ -570,10 +593,16 @@ class SyncService {
         .toList()
       ..sort((a, b) => ((a['id'] ?? '') as String)
           .compareTo((b['id'] ?? '') as String));
+    final tsList = manifest.tombstones.values
+        .map((t) => t.toJson())
+        .toList()
+      ..sort((a, b) => ((a['id'] ?? '') as String)
+          .compareTo((b['id'] ?? '') as String));
     final payload = <String, dynamic>{
-      'version': 1,
+      'version': 2,
       'updatedAt': DateTime.now().toIso8601String(),
       'entries': list,
+      if (tsList.isNotEmpty) 'tombstones': tsList,
     };
     await client.write(
       _manifestPath(remoteRoot),
@@ -581,12 +610,39 @@ class SyncService {
     );
   }
 
+  Future<Map<String, DateTime>> _listRemoteAttachmentFiles(
+    webdav.Client client,
+    String remoteRoot,
+  ) async {
+    final files = <String, DateTime>{};
+    try {
+      final attachments = await client.readDir(_attachmentDir(remoteRoot));
+      for (final item in attachments) {
+        if (item.isDir != true && (item.path ?? '').isNotEmpty) {
+          files[item.path!] = item.mTime ?? DateTime.fromMillisecondsSinceEpoch(0);
+        }
+      }
+    } catch (_) {}
+    try {
+      final thumbs = await client.readDir(_thumbDir(remoteRoot));
+      for (final item in thumbs) {
+        if (item.isDir != true && (item.path ?? '').isNotEmpty) {
+          files[item.path!] = item.mTime ?? DateTime.fromMillisecondsSinceEpoch(0);
+        }
+      }
+    } catch (_) {}
+    return files;
+  }
+
   Future<_EntryEnvelope> _downloadRemoteEntry(
     webdav.Client client,
     String remoteRoot,
     _ManifestEntry manifestEntry,
   ) async {
-    final bytes = await client.read(manifestEntry.path);
+    final bytes = await _retryWithBackoff(
+      () => client.read(manifestEntry.path),
+      baseDelayMs: 400,
+    );
     final decoded = utf8.decode(gzip.decode(bytes));
     final json = jsonDecode(decoded) as Map<String, dynamic>;
     return _EntryEnvelope.fromJson(json);
@@ -595,8 +651,9 @@ class SyncService {
   Future<Map<String, dynamic>> _buildRemoteAttachment(
     webdav.Client client,
     String remoteRoot,
-    DiaryAttachment attachment,
-  ) async {
+    DiaryAttachment attachment, {
+    Set<String> existingRemoteFiles = const <String>{},
+  }) async {
     final payload = <String, dynamic>{
       'caption': attachment.caption,
       'type': attachment.type.name,
@@ -611,7 +668,9 @@ class SyncService {
           : p.extension(localPath).toLowerCase();
       final hash = sha256.convert(bytes).toString();
       final remotePath = '${_attachmentDir(remoteRoot)}/$hash$ext';
-      await client.write(remotePath, bytes);
+      if (!existingRemoteFiles.contains(remotePath)) {
+        await client.write(remotePath, bytes);
+      }
       payload['hash'] = hash;
       payload['remotePath'] = remotePath;
     } else {
@@ -631,7 +690,9 @@ class SyncService {
       final thumbRemote = hash.isEmpty
           ? '${_thumbDir(remoteRoot)}/${const Uuid().v4()}.jpg'
           : '${_thumbDir(remoteRoot)}/$hash.jpg';
-      await client.write(thumbRemote, bytes);
+      if (!existingRemoteFiles.contains(thumbRemote)) {
+        await client.write(thumbRemote, bytes);
+      }
       payload['thumbnailRemotePath'] = thumbRemote;
     } else if (attachment.thumbnailRemotePath.isNotEmpty) {
       payload['thumbnailRemotePath'] = attachment.thumbnailRemotePath;
@@ -645,6 +706,7 @@ class SyncService {
     String remoteRoot,
     DiaryEntry entry, {
     required String revision,
+    Set<String> existingRemoteFiles = const <String>{},
   }) async {
     final syncAttachments = <Map<String, dynamic>>[];
     final mergedAttachments = <DiaryAttachment>[];
@@ -653,6 +715,7 @@ class SyncService {
         client,
         remoteRoot,
         attachment,
+        existingRemoteFiles: existingRemoteFiles,
       );
       syncAttachments.add(remoteMeta);
       mergedAttachments.add(
@@ -677,9 +740,12 @@ class SyncService {
     );
     final writable = envelope.toJson()..['attachments'] = syncAttachments;
     final compressed = gzip.encode(utf8.encode(jsonEncode(writable)));
-    await client.write(
-      _entryPath(remoteRoot, mergedEntry.id),
-      Uint8List.fromList(compressed),
+    await _retryWithBackoff(
+      () => client.write(
+        _entryPath(remoteRoot, mergedEntry.id),
+        Uint8List.fromList(compressed),
+      ),
+      baseDelayMs: 400,
     );
     return envelope;
   }
@@ -818,6 +884,7 @@ class SyncService {
     webdav.Client client,
     String remoteRoot,
     Map<String, _ManifestEntry> entries,
+    Map<String, DateTime> existingRemoteFiles,
   ) async {
     final cutoff = DateTime.now().subtract(const Duration(days: 30));
     final referenced = await _collectReferencedAttachmentPaths(
@@ -825,35 +892,15 @@ class SyncService {
       remoteRoot,
       entries,
     );
-    final attachments = await client.readDir(_attachmentDir(remoteRoot));
-    for (final item in attachments) {
-      if (item.isDir == true) {
+    for (final entry in existingRemoteFiles.entries) {
+      final path = entry.key;
+      final modifiedAt = entry.value;
+      if (referenced.contains(path) || modifiedAt.isAfter(cutoff)) {
         continue;
       }
-      final path = item.path ?? '';
-      final modifiedAt = item.mTime;
-      if (path.isEmpty ||
-          referenced.contains(path) ||
-          modifiedAt == null ||
-          modifiedAt.isAfter(cutoff)) {
-        continue;
-      }
-      await client.remove(path);
-    }
-    final thumbs = await client.readDir(_thumbDir(remoteRoot));
-    for (final item in thumbs) {
-      if (item.isDir == true) {
-        continue;
-      }
-      final path = item.path ?? '';
-      final modifiedAt = item.mTime;
-      if (path.isEmpty ||
-          referenced.contains(path) ||
-          modifiedAt == null ||
-          modifiedAt.isAfter(cutoff)) {
-        continue;
-      }
-      await client.remove(path);
+      try {
+        await client.remove(path);
+      } catch (_) {}
     }
   }
 
@@ -861,16 +908,13 @@ class SyncService {
     webdav.Client client,
     String remoteRoot,
     _PendingHardDelete record,
+    _RemoteManifest manifest,
   ) async {
-    final payload = _TombstoneRecord(
+    manifest.tombstones[record.id] = _TombstoneRecord(
       id: record.id,
       revision: record.revision,
       deletedAt: record.deletedAt,
       targetRevision: record.targetRevision,
-    );
-    await client.write(
-      _tombstonePath(remoteRoot, record.id),
-      Uint8List.fromList(utf8.encode(jsonEncode(payload.toJson()))),
     );
     await client.remove(_entryPath(remoteRoot, record.id));
   }
@@ -967,7 +1011,7 @@ class SyncService {
         }
         final record = _PendingHardDelete.fromJson(raw);
         try {
-          await _writeTombstone(client, remoteRoot, record);
+          await _writeTombstone(client, remoteRoot, record, manifest);
         } catch (_) {
           continue;
         }
@@ -1001,169 +1045,185 @@ class SyncService {
         ...localHeads.keys,
         ...manifest.entries.keys,
       };
+      final allRawStates = await _settingsRepository.loadEntrySyncStates();
       final syncStates = <String, _SyncState>{};
       for (final id in allIds) {
-        syncStates[id] = await _loadSyncStateForEntry(id);
+        syncStates[id] = _parseSyncState(allRawStates, id);
       }
 
-      // ── Single reconciliation pass ───────────────────────────────
+      // ── Collect existing remote files for upload dedup ────────────
+      final existingRemoteFiles = await _listRemoteAttachmentFiles(
+        client,
+        remoteRoot,
+      );
+
+      // ── Pre-compute change flags ──────────────────────────────────
+      final remoteChangedIds = <String>{};
+      final localChangedIds = <String>{};
+      final conflictIds = <String>{};
+
       for (final id in allIds) {
-        DiaryEntry? local = localMap[id];
-        final existsLocally = localHeads.containsKey(id);
+        final local = localMap[id];
         final state = syncStates[id] ?? _SyncState.empty;
         final me = manifest.entries[id];
 
-        if (!existsLocally && me == null) {
+        if (!localHeads.containsKey(id) && me == null) {
           syncStates.remove(id);
           continue;
         }
 
-        final localFingerprint =
-            local != null ? _contentFingerprint(local) : '';
         final localChanged = local != null &&
-            localFingerprint != state.contentFingerprint;
+            _contentFingerprint(local) != state.contentFingerprint;
         final remoteChanged = me != null &&
             me.revision != state.lastSyncedRevision;
 
-        // ── Neither changed ──────────────────────────────────────
-        if (!localChanged && !remoteChanged) {
-          if (local != null && me != null &&
-              me.revision != state.lastSyncedRevision) {
-            syncStates[id] = _SyncState(
-              lastSyncedRevision: me.revision,
-              contentFingerprint: localFingerprint,
-            );
-          }
-          if (existsLocally && me == null && state.isInitialized) {
-            local ??= await _diaryRepository.getById(id);
-            if (local == null) {
-              continue;
-            }
-            final revision = await _newRevisionString();
-            final envelope = await _uploadEntry(
-              client,
-              remoteRoot,
-              local,
-              revision: revision,
-            );
-            final refs = _collectAttachmentRefs(envelope.entry);
-            manifest.entries[id] = _ManifestEntry(
-              id: id,
-              path: _entryPath(remoteRoot, id),
-              revision: revision,
-              contentFingerprint: envelope.contentFingerprint,
-              attachmentRefs: refs,
-            );
-            syncStates[id] = _SyncState(
-              lastSyncedRevision: revision,
-              contentFingerprint: _contentFingerprint(local),
-              lastRemoteUpdatedAt: DateTime.now(),
-            );
-            uploaded++;
-          }
-          continue;
-        }
+        if (localChanged) localChangedIds.add(id);
+        if (remoteChanged) remoteChangedIds.add(id);
+        if (localChanged && remoteChanged) conflictIds.add(id);
+      }
 
-        // ── Only local changed ───────────────────────────────────
-        if (localChanged && !remoteChanged) {
-          final revision = await _newRevisionString();
-          final envelope = await _uploadEntry(
-            client,
-            remoteRoot,
-            local,
-            revision: revision,
-          );
-          final refs = _collectAttachmentRefs(envelope.entry);
-          manifest.entries[id] = _ManifestEntry(
-            id: id,
-            path: _entryPath(remoteRoot, id),
-            revision: revision,
-            contentFingerprint: envelope.contentFingerprint,
-            attachmentRefs: refs,
-          );
-          syncStates[id] = _SyncState(
-            lastSyncedRevision: revision,
-            contentFingerprint: localFingerprint,
-            lastRemoteUpdatedAt: DateTime.now(),
-          );
-          uploaded++;
-          continue;
-        }
+      // ── Phase 1: Download remote changes ──────────────────────────
+      for (final id in remoteChangedIds) {
+        if (conflictIds.contains(id)) continue;
 
-        // ── Only remote changed ──────────────────────────────────
-        if (!localChanged && remoteChanged) {
-          final envelope = await _downloadRemoteEntry(client, remoteRoot, me);
-          final raw = envelope.entry.toSyncJson()
-            ..['attachments'] =
-                envelope.entry.attachments.map((a) => a.toJson()).toList();
-          if (existsLocally && local == null) {
-            local = await _diaryRepository.getById(id);
-          }
-          final hydrated = await _materializeRemoteEntry(client, raw, local);
-          final readyEntry = DiaryEntry.fromSyncJson(hydrated)
-              .copyWith(updatedAt: envelope.updatedAt);
-          await _diaryRepository.upsert(readyEntry);
-          final refs = _collectAttachmentRefs(envelope.entry);
-          manifest.entries[id] = _ManifestEntry(
-            id: id,
-            path: _entryPath(remoteRoot, id),
-            revision: me.revision,
-            contentFingerprint: me.contentFingerprint,
-            attachmentRefs: refs,
-          );
-          syncStates[id] = _SyncState(
-            lastSyncedRevision: me.revision,
-            contentFingerprint: me.contentFingerprint,
-          );
-          downloaded++;
-          continue;
+        final me = manifest.entries[id]!;
+        final envelope = await _downloadRemoteEntry(client, remoteRoot, me);
+        final raw = envelope.entry.toSyncJson()
+          ..['attachments'] =
+              envelope.entry.attachments.map((a) => a.toJson()).toList();
+        DiaryEntry? local = localMap[id];
+        if (localHeads.containsKey(id) && local == null) {
+          local = await _diaryRepository.getById(id);
         }
+        final hydrated = await _materializeRemoteEntry(client, raw, local);
+        final readyEntry = DiaryEntry.fromSyncJson(hydrated)
+            .copyWith(updatedAt: envelope.updatedAt);
+        await _diaryRepository.upsert(readyEntry);
+        final refs = _collectAttachmentRefs(envelope.entry);
+        manifest.entries[id] = _ManifestEntry(
+          id: id,
+          path: _entryPath(remoteRoot, id),
+          revision: me.revision,
+          contentFingerprint: me.contentFingerprint,
+          attachmentRefs: refs,
+        );
+        syncStates[id] = _SyncState(
+          lastSyncedRevision: me.revision,
+          contentFingerprint: me.contentFingerprint,
+        );
+        downloaded++;
+      }
 
-        // ── Both changed — conflict ──────────────────────────────
-        if (localChanged && remoteChanged) {
-          if (config.conflictStrategy == ConflictStrategy.keepBoth) {
-            await _diaryRepository.upsert(
-              local.copyWith(
-                id: const Uuid().v4(),
-                title: '${local.title} (冲突副本)',
-                updatedAt: DateTime.now(),
-              ),
-            );
-            conflicts++;
-          }
-          final envelope = await _downloadRemoteEntry(client, remoteRoot, me);
-          final raw = envelope.entry.toSyncJson()
-            ..['attachments'] =
-                envelope.entry.attachments.map((a) => a.toJson()).toList();
-          final hydrated = await _materializeRemoteEntry(client, raw, local);
-          final readyEntry = DiaryEntry.fromSyncJson(hydrated)
-              .copyWith(updatedAt: envelope.updatedAt);
-          await _diaryRepository.upsert(readyEntry);
-          final refs = _collectAttachmentRefs(envelope.entry);
-          manifest.entries[id] = _ManifestEntry(
-            id: id,
-            path: _entryPath(remoteRoot, id),
-            revision: me.revision,
-            contentFingerprint: me.contentFingerprint,
-            attachmentRefs: refs,
+      // ── Phase 2: Upload local changes ─────────────────────────────
+      for (final id in localChangedIds) {
+        if (conflictIds.contains(id)) continue;
+
+        final local = localMap[id]!;
+        final localFingerprint = _contentFingerprint(local);
+        final revision = await _newRevisionString();
+        final envelope = await _uploadEntry(
+          client,
+          remoteRoot,
+          local,
+          revision: revision,
+          existingRemoteFiles: existingRemoteFiles.keys.toSet(),
+        );
+        final refs = _collectAttachmentRefs(envelope.entry);
+        manifest.entries[id] = _ManifestEntry(
+          id: id,
+          path: _entryPath(remoteRoot, id),
+          revision: revision,
+          contentFingerprint: envelope.contentFingerprint,
+          attachmentRefs: refs,
+        );
+        syncStates[id] = _SyncState(
+          lastSyncedRevision: revision,
+          contentFingerprint: localFingerprint,
+          lastRemoteUpdatedAt: DateTime.now(),
+        );
+        uploaded++;
+      }
+
+      // Recover local entries missing from manifest (e.g. after corruption)
+      for (final id in localHeads.keys) {
+        if (manifest.entries.containsKey(id)) continue;
+        final state = syncStates[id] ?? _SyncState.empty;
+        if (!state.isInitialized) continue;
+
+        final local = localMap[id] ?? await _diaryRepository.getById(id);
+        if (local == null) continue;
+
+        final localFingerprint = _contentFingerprint(local);
+        final revision = await _newRevisionString();
+        final envelope = await _uploadEntry(
+          client,
+          remoteRoot,
+          local,
+          revision: revision,
+          existingRemoteFiles: existingRemoteFiles.keys.toSet(),
+        );
+        final refs = _collectAttachmentRefs(envelope.entry);
+        manifest.entries[id] = _ManifestEntry(
+          id: id,
+          path: _entryPath(remoteRoot, id),
+          revision: revision,
+          contentFingerprint: envelope.contentFingerprint,
+          attachmentRefs: refs,
+        );
+        syncStates[id] = _SyncState(
+          lastSyncedRevision: revision,
+          contentFingerprint: localFingerprint,
+          lastRemoteUpdatedAt: DateTime.now(),
+        );
+        uploaded++;
+      }
+
+      // ── Phase 3: Resolve conflicts ────────────────────────────────
+      for (final id in conflictIds) {
+        final local = localMap[id]!;
+        final me = manifest.entries[id]!;
+
+        if (config.conflictStrategy == ConflictStrategy.keepBoth) {
+          await _diaryRepository.upsert(
+            local.copyWith(
+              id: const Uuid().v4(),
+              title: '${local.title} (冲突副本)',
+              updatedAt: DateTime.now(),
+            ),
           );
-          syncStates[id] = _SyncState(
-            lastSyncedRevision: me.revision,
-            contentFingerprint: me.contentFingerprint,
-          );
-          downloaded++;
-          continue;
+          conflicts++;
         }
+        final envelope = await _downloadRemoteEntry(client, remoteRoot, me);
+        final raw = envelope.entry.toSyncJson()
+          ..['attachments'] =
+              envelope.entry.attachments.map((a) => a.toJson()).toList();
+        final hydrated = await _materializeRemoteEntry(client, raw, local);
+        final readyEntry = DiaryEntry.fromSyncJson(hydrated)
+            .copyWith(updatedAt: envelope.updatedAt);
+        await _diaryRepository.upsert(readyEntry);
+        final refs = _collectAttachmentRefs(envelope.entry);
+        manifest.entries[id] = _ManifestEntry(
+          id: id,
+          path: _entryPath(remoteRoot, id),
+          revision: me.revision,
+          contentFingerprint: me.contentFingerprint,
+          attachmentRefs: refs,
+        );
+        syncStates[id] = _SyncState(
+          lastSyncedRevision: me.revision,
+          contentFingerprint: me.contentFingerprint,
+        );
+        downloaded++;
       }
 
       // ── Apply remote tombstones ──────────────────────────────────
-      for (final entry in manifest.tombstones.values) {
-        final id = entry.payload.id;
+      for (final record in manifest.tombstones.values) {
+        final id = record.id;
         if (!localHeads.containsKey(id)) {
           continue;
         }
         final state = syncStates[id] ?? _SyncState.empty;
-        if (_compareRevision(state.lastSyncedRevision, entry.payload.revision) >= 0) {
+        if (_compareRevision(state.lastSyncedRevision, record.revision) >= 0) {
           continue;
         }
         await _diaryRepository.deleteForever(id);
@@ -1178,6 +1238,7 @@ class SyncService {
         client,
         remoteRoot,
         manifest.entries,
+        existingRemoteFiles,
       );
       await _settingsRepository.saveLastSyncAt(syncStartTime);
 

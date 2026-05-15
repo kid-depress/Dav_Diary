@@ -4,6 +4,8 @@ import 'package:diary/app/app_state.dart';
 import 'package:diary/app/i18n.dart';
 import 'package:diary/data/models/diary_entry.dart';
 import 'package:diary/ui/motion/motion_spec.dart';
+import 'package:diary/ui/motion/pressable_scale.dart';
+import 'package:diary/ui/motion/staggered_entrance.dart';
 import 'package:diary/ui/widgets/entry_meta_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -146,9 +148,13 @@ class _HomePageState extends State<HomePage> {
                 childCount: entries.length,
                 itemBuilder: (context, index) {
                   final entry = entries[index];
-                  return _GridEntryCard(
-                    entry: entry,
-                    onTap: () => widget.onOpen(entry),
+                  return StaggeredEntrance(
+                    key: ValueKey('stagger_${entry.id}'),
+                    index: index,
+                    child: _GridEntryCard(
+                      entry: entry,
+                      onTap: () => widget.onOpen(entry),
+                    ),
                   );
                 },
               ),
@@ -240,108 +246,113 @@ class _GridEntryCard extends StatelessWidget {
         parseMoodMeta(entry.mood).hasValue ||
         parseWeatherMeta(entry.weather).hasValue;
 
-    return Card(
-      margin: EdgeInsets.zero,
-      color: colors.surfaceContainerLow,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (hasImage)
-              AspectRatio(
-                aspectRatio: 1.0,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Image.file(
-                      File(imagePath),
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, _, _) => Container(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.surfaceContainerHighest,
-                        child: const Icon(Icons.broken_image_outlined),
-                      ),
+    return PressableScale(
+      child: Card(
+        margin: EdgeInsets.zero,
+        color: colors.surfaceContainerLow,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (hasImage)
+                Hero(
+                  tag: 'entry_hero_${entry.id}',
+                  child: AspectRatio(
+                    aspectRatio: 1.0,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.file(
+                          File(imagePath),
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, _, _) => Container(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHighest,
+                            child: const Icon(Icons.broken_image_outlined),
+                          ),
+                        ),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.black.withValues(alpha: 0.08),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.black.withValues(alpha: 0.08),
-                          ],
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (hasBodyText)
+                      Text(
+                        previewText,
+                        maxLines: hasImage ? 3 : 5,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          height: 1.34,
+                          fontWeight: FontWeight.w400,
+                          fontSize: 14,
+                          color: colors.onSurface,
                         ),
                       ),
+                    if (hasLocation) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        entry.location.trim(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: colors.onSurfaceVariant.withValues(alpha: 0.86),
+                          fontWeight: FontWeight.w400,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            DateFormat(hasMeta ? 'yyyy/M/d' : 'yyyy/M/d HH:mm:ss').format(entry.eventAt),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.labelLarge
+                                ?.copyWith(
+                                  letterSpacing: 0.05,
+                                  color: colors.onSurfaceVariant.withValues(
+                                    alpha: 0.86,
+                                  ),
+                                  fontWeight: FontWeight.w400,
+                                  fontSize: 12,
+                                ),
+                          ),
+                        ),
+                        if (hasMeta) ...[
+                          const SizedBox(width: 8),
+                          _EntryMetaWrap(entry: entry),
+                        ],
+                      ],
                     ),
                   ],
                 ),
               ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (hasBodyText)
-                    Text(
-                      previewText,
-                      maxLines: hasImage ? 3 : 5,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        height: 1.34,
-                        fontWeight: FontWeight.w400,
-                        fontSize: 14,
-                        color: colors.onSurface,
-                      ),
-                    ),
-                  if (hasLocation) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      entry.location.trim(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: colors.onSurfaceVariant.withValues(alpha: 0.86),
-                        fontWeight: FontWeight.w400,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          DateFormat(hasMeta ? 'yyyy/M/d' : 'yyyy/M/d HH:mm:ss').format(entry.eventAt),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelLarge
-                              ?.copyWith(
-                                letterSpacing: 0.05,
-                                color: colors.onSurfaceVariant.withValues(
-                                  alpha: 0.86,
-                                ),
-                                fontWeight: FontWeight.w400,
-                                fontSize: 12,
-                              ),
-                        ),
-                      ),
-                      if (hasMeta) ...[
-                        const SizedBox(width: 8),
-                        _EntryMetaWrap(entry: entry),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

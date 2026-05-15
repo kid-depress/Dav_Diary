@@ -4,6 +4,7 @@ import 'package:diary/app/app_state.dart';
 import 'package:diary/app/i18n.dart';
 import 'package:diary/data/models/diary_entry.dart';
 import 'package:diary/ui/motion/motion_spec.dart';
+import 'package:diary/ui/motion/staggered_entrance.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -308,12 +309,16 @@ class _CalendarPageState extends State<CalendarPage> {
                             ? null
                             : sortedEntries[itemIndex + 1];
                         final selected = isSameDay(entry.eventAt, _selectedDay);
-                        return _TimelineEntryCard(
-                          entry: entry,
-                          selected: selected,
-                          onOpen: widget.onOpen,
-                          hasLineAbove: previous != null,
-                          hasLineBelow: next != null,
+                        return StaggeredEntrance(
+                          key: ValueKey('timeline_${entry.id}'),
+                          index: itemIndex,
+                          child: _TimelineEntryCard(
+                            entry: entry,
+                            selected: selected,
+                            onOpen: widget.onOpen,
+                            hasLineAbove: previous != null,
+                            hasLineBelow: next != null,
+                          ),
                         );
                       },
                     ),

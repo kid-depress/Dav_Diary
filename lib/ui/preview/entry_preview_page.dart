@@ -355,10 +355,19 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
                         height: attachmentSize + 8,
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
-                          itemBuilder: (context, index) => _buildAttachment(
-                            _entry.attachments[index],
-                            size: attachmentSize,
-                          ),
+                          itemBuilder: (context, index) {
+                            final attachment = _buildAttachment(
+                              _entry.attachments[index],
+                              size: attachmentSize,
+                            );
+                            if (index == 0) {
+                              return Hero(
+                                tag: 'entry_hero_${_entry.id}',
+                                child: attachment,
+                              );
+                            }
+                            return attachment;
+                          },
                           separatorBuilder: (context, index) =>
                               const SizedBox(width: 8),
                           itemCount: _entry.attachments.length,

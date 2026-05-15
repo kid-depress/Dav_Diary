@@ -31,6 +31,7 @@ class DiaryAppState extends ChangeNotifier {
 
   bool _loading = true;
   bool _syncing = false;
+  Timer? _autoSyncTimer;
   ThemeMode _themeMode = ThemeMode.system;
   Color _themeSeedColor = const Color(0xFF7A8DA1);
   Locale _locale = const Locale('zh', 'CN');
@@ -69,12 +70,7 @@ class DiaryAppState extends ChangeNotifier {
     await refreshDailyQuoteIfNeeded();
 
     if (_webDavConfig.isConfigured) {
-      _syncing = true;
-      notifyListeners();
-      await _syncService.syncNow();
-      _lastSyncAt = await _settingsRepository.loadLastSyncAt();
-      _syncing = false;
-      await refreshEntries();
+      unawaited(syncNow());
     }
 
     await _storageService.cleanupOrphanedMedia(_entries);
@@ -237,21 +233,34 @@ class DiaryAppState extends ChangeNotifier {
   }
 
   Future<SyncResult> syncNow() async {
+    if (_syncing) {
+      return const SyncResult(
+        success: false,
+        message: 'Sync already in progress',
+      );
+    }
     _syncing = true;
     notifyListeners();
-    final result = await _syncService.syncNow(locale: _locale);
-    _lastSyncAt = await _settingsRepository.loadLastSyncAt();
-    _syncing = false;
-    await refreshEntries();
-    await _storageService.cleanupOrphanedMedia(_entries);
-    return result;
+    try {
+      final result = await _syncService.syncNow(locale: _locale);
+      _lastSyncAt = await _settingsRepository.loadLastSyncAt();
+      await refreshEntries();
+      await _storageService.cleanupOrphanedMedia(_entries);
+      return result;
+    } finally {
+      _syncing = false;
+      notifyListeners();
+    }
   }
 
   void _triggerAutoSyncAfterLocalChange() {
-    if (!_webDavConfig.isConfigured || _syncing) {
+    if (!_webDavConfig.isConfigured) {
       return;
     }
-    unawaited(syncNow());
+    _autoSyncTimer?.cancel();
+    _autoSyncTimer = Timer(const Duration(seconds: 3), () {
+      unawaited(syncNow());
+    });
   }
 
   Future<DiaryAttachment?> restoreAttachmentForEntry(

@@ -268,22 +268,35 @@ class _HomeShellState extends State<HomeShell> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    if (_showHomeScrollToTop) ...[
-                      FloatingActionButton.small(
-                        heroTag: 'home_scroll_to_top',
-                        onPressed: () {
-                          setState(() {
-                            _homeScrollToTopSignal++;
-                            _homeBottomBarVisible = true;
-                            _showHomeScrollToTop = false;
-                          });
-                        },
-                        backgroundColor: colors.surfaceContainerHigh,
-                        foregroundColor: colors.onSurface,
-                        child: const Icon(Icons.keyboard_arrow_up),
+                    AnimatedScale(
+                      scale: _showHomeScrollToTop ? 1.0 : 0.5,
+                      duration: MotionSpec.popupDuration,
+                      curve: MotionSpec.popupCurve,
+                      child: AnimatedOpacity(
+                        opacity: _showHomeScrollToTop ? 1.0 : 0.0,
+                        duration: MotionSpec.popupDuration,
+                        curve: MotionSpec.popupCurve,
+                        child: IgnorePointer(
+                          ignoring: !_showHomeScrollToTop,
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: FloatingActionButton.small(
+                              heroTag: 'home_scroll_to_top',
+                              onPressed: () {
+                                setState(() {
+                                  _homeScrollToTopSignal++;
+                                  _homeBottomBarVisible = true;
+                                  _showHomeScrollToTop = false;
+                                });
+                              },
+                              backgroundColor: colors.surfaceContainerHigh,
+                              foregroundColor: colors.onSurface,
+                              child: const Icon(Icons.keyboard_arrow_up),
+                            ),
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 12),
-                    ],
+                    ),
                     _PrimaryGradientFab(onPressed: () => _openEditor()),
                   ],
                 )

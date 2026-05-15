@@ -653,74 +653,100 @@ class _EditorPageState extends State<EditorPage> {
     final locationText = _locationController.text.trim().isEmpty
         ? tr(context, zh: '设置位置', en: 'Set location')
         : _locationController.text.trim();
-    return SizedBox(
-      height: 48,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilterChip(
-              avatar: Icon(
-                _selectedMood.isEmpty
-                    ? LucideIcons.smile
-                    : _moodIcon(_selectedMood),
-                size: 18,
+    final colors = Theme.of(context).colorScheme;
+    return Stack(
+      children: [
+        SizedBox(
+          height: 48,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.only(right: 28),
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: FilterChip(
+                  avatar: Icon(
+                    _selectedMood.isEmpty
+                        ? LucideIcons.smile
+                        : _moodIcon(_selectedMood),
+                    size: 18,
+                  ),
+                  label: Text(
+                    _moodDescController.text.trim().isEmpty
+                        ? tr(context, zh: '心情', en: 'Mood')
+                        : _moodDescController.text.trim(),
+                  ),
+                  showCheckmark: false,
+                  selected: true,
+                  onSelected: (_) => _openMoodSheet(),
+                ),
               ),
-              label: Text(
-                _moodDescController.text.trim().isEmpty
-                    ? tr(context, zh: '心情', en: 'Mood')
-                    : _moodDescController.text.trim(),
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: FilterChip(
+                  avatar: Icon(
+                    _selectedWeather.isEmpty
+                        ? LucideIcons.cloudSun
+                        : _weatherIcon(_selectedWeather),
+                    size: 18,
+                  ),
+                  label: Text(
+                    _weatherDescController.text.trim().isEmpty
+                        ? tr(context, zh: '天气', en: 'Weather')
+                        : _weatherDescController.text.trim(),
+                  ),
+                  showCheckmark: false,
+                  selected: true,
+                  onSelected: (_) => _openWeatherSheet(),
+                ),
               ),
-              showCheckmark: false,
-              selected: true,
-              onSelected: (_) => _openMoodSheet(),
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: FilterChip(
+                  avatar: const Icon(Icons.schedule_outlined, size: 18),
+                  label: Text(dateText),
+                  showCheckmark: false,
+                  selected: true,
+                  onSelected: (_) => _pickEventAt(),
+                ),
+              ),
+              FilterChip(
+                avatar: _locating
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.my_location_outlined, size: 18),
+                label: Text(locationText, overflow: TextOverflow.ellipsis),
+                showCheckmark: false,
+                selected: true,
+                onSelected: (_) => _locate(),
+              ),
+            ],
+          ),
+        ),
+        Positioned(
+          right: 0,
+          top: 0,
+          bottom: 0,
+          child: IgnorePointer(
+            child: Container(
+              width: 32,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerRight,
+                  end: Alignment.centerLeft,
+                  colors: [
+                    colors.surface,
+                    colors.surface.withValues(alpha: 0),
+                  ],
+                ),
+              ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilterChip(
-              avatar: Icon(
-                _selectedWeather.isEmpty
-                    ? LucideIcons.cloudSun
-                    : _weatherIcon(_selectedWeather),
-                size: 18,
-              ),
-              label: Text(
-                _weatherDescController.text.trim().isEmpty
-                    ? tr(context, zh: '天气', en: 'Weather')
-                    : _weatherDescController.text.trim(),
-              ),
-              showCheckmark: false,
-              selected: true,
-              onSelected: (_) => _openWeatherSheet(),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilterChip(
-              avatar: const Icon(Icons.schedule_outlined, size: 18),
-              label: Text(dateText),
-              showCheckmark: false,
-              selected: true,
-              onSelected: (_) => _pickEventAt(),
-            ),
-          ),
-          FilterChip(
-            avatar: _locating
-                ? const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.my_location_outlined, size: 18),
-            label: Text(locationText, overflow: TextOverflow.ellipsis),
-            showCheckmark: false,
-            selected: true,
-            onSelected: (_) => _locate(),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
