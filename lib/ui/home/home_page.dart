@@ -133,6 +133,7 @@ class _HomePageState extends State<HomePage> {
         final columns = _dynamicColumnCount(constraints.maxWidth);
         return CustomScrollView(
           controller: _scrollController,
+          cacheExtent: 800,
           slivers: [
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(
@@ -151,9 +152,12 @@ class _HomePageState extends State<HomePage> {
                   return StaggeredEntrance(
                     key: ValueKey('stagger_${entry.id}'),
                     index: index,
-                    child: _GridEntryCard(
-                      entry: entry,
-                      onTap: () => widget.onOpen(entry),
+                    skipAnimation: index >= 20,
+                    child: RepaintBoundary(
+                      child: _GridEntryCard(
+                        entry: entry,
+                        onTap: () => widget.onOpen(entry),
+                      ),
                     ),
                   );
                 },
@@ -269,6 +273,8 @@ class _GridEntryCard extends StatelessWidget {
                         Image.file(
                           File(imagePath),
                           fit: BoxFit.cover,
+                          cacheWidth: 400,
+                          cacheHeight: 400,
                           errorBuilder: (context, _, _) => Container(
                             color: Theme.of(
                               context,

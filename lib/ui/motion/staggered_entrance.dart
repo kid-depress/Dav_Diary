@@ -4,11 +4,13 @@ class StaggeredEntrance extends StatefulWidget {
   const StaggeredEntrance({
     required this.index,
     required this.child,
+    this.skipAnimation = false,
     super.key,
   });
 
   final int index;
   final Widget child;
+  final bool skipAnimation;
 
   static const perItemMs = 22;
   static const maxStaggerMs = 140;
@@ -26,6 +28,16 @@ class _StaggeredEntranceState extends State<StaggeredEntrance>
   @override
   void initState() {
     super.initState();
+    if (widget.skipAnimation) {
+      _controller = AnimationController(
+        duration: Duration.zero,
+        vsync: this,
+      )..forward();
+      _opacity = const AlwaysStoppedAnimation(1.0);
+      _slide = const AlwaysStoppedAnimation(Offset.zero);
+      return;
+    }
+
     final delayMs =
         (widget.index * StaggeredEntrance.perItemMs)
             .clamp(0, StaggeredEntrance.maxStaggerMs);

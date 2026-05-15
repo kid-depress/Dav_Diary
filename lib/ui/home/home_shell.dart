@@ -209,7 +209,7 @@ class _HomeShellState extends State<HomeShell> {
                         )),
             flexibleSpace: ClipRect(
               child: BackdropFilter(
-                filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: colors.surface.withValues(alpha: 0.86),
@@ -339,7 +339,7 @@ class _HomeShellState extends State<HomeShell> {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(28),
                           child: BackdropFilter(
-                            filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                            filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
                             child: DecoratedBox(
                               decoration: BoxDecoration(
                                 color: colors.surface.withValues(alpha: 0.9),

@@ -312,12 +312,15 @@ class _CalendarPageState extends State<CalendarPage> {
                         return StaggeredEntrance(
                           key: ValueKey('timeline_${entry.id}'),
                           index: itemIndex,
-                          child: _TimelineEntryCard(
-                            entry: entry,
-                            selected: selected,
-                            onOpen: widget.onOpen,
-                            hasLineAbove: previous != null,
-                            hasLineBelow: next != null,
+                          skipAnimation: itemIndex >= 20,
+                          child: RepaintBoundary(
+                            child: _TimelineEntryCard(
+                              entry: entry,
+                              selected: selected,
+                              onOpen: widget.onOpen,
+                              hasLineAbove: previous != null,
+                              hasLineBelow: next != null,
+                            ),
                           ),
                         );
                       },
