@@ -274,7 +274,6 @@ class _GridEntryCard extends StatelessWidget {
                           File(imagePath),
                           fit: BoxFit.cover,
                           cacheWidth: 400,
-                          cacheHeight: 400,
                           errorBuilder: (context, _, _) => Container(
                             color: Theme.of(
                               context,

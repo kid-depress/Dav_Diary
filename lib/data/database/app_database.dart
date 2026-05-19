@@ -19,12 +19,14 @@ class AppDatabase {
     if (pending != null) {
       return pending;
     }
-    _openFuture = _open().then((db) {
-      _database = db;
-      return db;
-    }).whenComplete(() {
-      _openFuture = null;
-    });
+    _openFuture = _open()
+        .then((db) {
+          _database = db;
+          return db;
+        })
+        .whenComplete(() {
+          _openFuture = null;
+        });
     return _openFuture!;
   }
 
@@ -33,7 +35,7 @@ class AppDatabase {
     final path = p.join(dir.path, 'diary.db');
     return openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
         await db.execute('''
 CREATE TABLE entries (
@@ -60,6 +62,44 @@ CREATE TABLE entries (
         await db.execute(
           'CREATE INDEX idx_entries_is_deleted ON entries(is_deleted)',
         );
+        await db.execute('''
+CREATE TABLE sync_entry_states (
+  id TEXT PRIMARY KEY,
+  last_synced_revision TEXT NOT NULL DEFAULT '',
+  content_fingerprint TEXT NOT NULL DEFAULT '',
+  last_remote_updated_at INTEGER,
+  last_remote_deleted_at INTEGER
+)
+''');
+        await db.execute('''
+CREATE TABLE pending_hard_deletes (
+  id TEXT PRIMARY KEY,
+  revision TEXT NOT NULL DEFAULT '',
+  deleted_at INTEGER NOT NULL,
+  target_revision TEXT NOT NULL DEFAULT ''
+)
+''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute('''
+CREATE TABLE IF NOT EXISTS sync_entry_states (
+  id TEXT PRIMARY KEY,
+  last_synced_revision TEXT NOT NULL DEFAULT '',
+  content_fingerprint TEXT NOT NULL DEFAULT '',
+  last_remote_updated_at INTEGER,
+  last_remote_deleted_at INTEGER
+)
+''');
+          await db.execute('''
+CREATE TABLE IF NOT EXISTS pending_hard_deletes (
+  id TEXT PRIMARY KEY,
+  revision TEXT NOT NULL DEFAULT '',
+  deleted_at INTEGER NOT NULL,
+  target_revision TEXT NOT NULL DEFAULT ''
+)
+''');
+        }
       },
     );
   }
