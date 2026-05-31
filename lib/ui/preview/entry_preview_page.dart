@@ -433,14 +433,87 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
                 width: double.infinity,
                 constraints: const BoxConstraints(minHeight: 180),
                 padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-                child: QuillEditor.basic(
-                  controller: _previewController,
-                  focusNode: _previewFocusNode,
-                  scrollController: _previewScrollController,
-                  config: const QuillEditorConfig(
-                    showCursor: false,
-                    padding: EdgeInsets.all(4),
-                  ),
+                child: Builder(
+                  builder: (context) {
+                    final baseStyles =
+                        DefaultStyles.getInstance(context);
+                    final smallerStyles = DefaultStyles(
+                      h1: baseStyles.h1,
+                      h2: baseStyles.h2,
+                      h3: baseStyles.h3,
+                      h4: baseStyles.h4,
+                      h5: baseStyles.h5,
+                      h6: baseStyles.h6,
+                      paragraph:
+                          baseStyles.paragraph?.copyWith(
+                            style: baseStyles.paragraph!.style.copyWith(
+                              fontSize: 14,
+                            ),
+                          ),
+                      lists: baseStyles.lists?.copyWith(
+                            style: baseStyles.lists!.style.copyWith(
+                              fontSize: 14,
+                            ),
+                          ),
+                      quote: baseStyles.quote?.copyWith(
+                        style: baseStyles.quote!.style.copyWith(
+                          fontSize: 14,
+                        ),
+                      ),
+                      code: baseStyles.code?.copyWith(
+                        style: baseStyles.code!.style.copyWith(
+                          fontSize: 14,
+                        ),
+                      ),
+                      indent: baseStyles.indent?.copyWith(
+                        style: baseStyles.indent!.style.copyWith(
+                          fontSize: 14,
+                        ),
+                      ),
+                      align: baseStyles.align?.copyWith(
+                        style: baseStyles.align!.style.copyWith(
+                          fontSize: 14,
+                        ),
+                      ),
+                      leading: baseStyles.leading?.copyWith(
+                        style: baseStyles.leading!.style.copyWith(
+                          fontSize: 14,
+                        ),
+                      ),
+                      placeHolder: baseStyles.placeHolder,
+                      bold: baseStyles.bold,
+                      subscript: baseStyles.subscript,
+                      superscript: baseStyles.superscript,
+                      italic: baseStyles.italic,
+                      small: baseStyles.small,
+                      underline: baseStyles.underline,
+                      strikeThrough: baseStyles.strikeThrough,
+                      inlineCode: baseStyles.inlineCode,
+                      link: baseStyles.link,
+                      color: baseStyles.color,
+                      sizeSmall: baseStyles.sizeSmall,
+                      sizeLarge: baseStyles.sizeLarge,
+                      sizeHuge: baseStyles.sizeHuge,
+                      lineHeightNormal:
+                          baseStyles.lineHeightNormal,
+                      lineHeightTight: baseStyles.lineHeightTight,
+                      lineHeightOneAndHalf:
+                          baseStyles.lineHeightOneAndHalf,
+                      lineHeightDouble:
+                          baseStyles.lineHeightDouble,
+                      palette: baseStyles.palette,
+                    );
+                    return QuillEditor.basic(
+                      controller: _previewController,
+                      focusNode: _previewFocusNode,
+                      scrollController: _previewScrollController,
+                      config: QuillEditorConfig(
+                        showCursor: false,
+                        padding: const EdgeInsets.all(4),
+                        customStyles: smallerStyles,
+                      ),
+                    );
+                  },
                 ),
               ),
             );
