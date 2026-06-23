@@ -1,12 +1,20 @@
 
 
-![icon](https://picgo.2006111.xyz/pigo/picgo/icon.png)
+<p align="center">
+  <img src="https://picgo.2006111.xyz/pigo/picgo/icon.png" width="100" height="100" alt="素履 Logo" />
+</p>
 
-# 			Kidiary
+<h1 align="center">Kidiary</h1>
 
-​					[![License](https://img.shields.io/badge/License-MIT-red.svg)](LICENSE)[![Latest release](https://img.shields.io/github/v/release/kid-depress/Dav_Diary?include_prereleases)](https://github.com/kid-depress/Dav_Diary/releases)[![Downloads](https://img.shields.io/github/downloads/kid-depress/Dav_Diary/total)](https://github.com/kid-depress/Dav_Diary/releases)
+<p align="center">
+  <a href="./LICENSE"><img src="https://img.shields.io/github/v/release/kid-depress/Dav_Diary?include_prereleases" alt="License" /></a>
+  <img src="https://img.shields.io/badge/License-MIT-red.svg" alt="Platform" />
+  <img src="https://img.shields.io/github/downloads/kid-depress/Dav_Diary/total" />
+</p>
 
-​					  基于 Flutter 的智能增量同步日记应用
+<p align="center">
+  基于 Flutter 的智能增量同步日记应用,简单够用
+</p>
 
 **Dav Diary** 是一款兼顾"隐私主权"与"极致书写"的日记应用。数据归用户所有，通过 **WebDAV** 协议实现无缝增量备份，配合 **Material 3** 的灵动设计，提供最纯粹的记录空间。
 
