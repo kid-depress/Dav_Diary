@@ -157,8 +157,8 @@ class _HomeShellState extends State<HomeShell> {
         final isTablet = constraints.maxWidth >= _tabletBreakpoint;
         return Scaffold(
           appBar: AppBar(
-            toolbarHeight: _index == 1 ? 16 : 72,
-            titleSpacing: _index == 1 ? 0 : 22,
+            toolbarHeight: 72,
+            titleSpacing: 22,
             title: AnimatedSwitcher(
               duration: MotionSpec.tabSwitchDuration,
               switchInCurve: MotionSpec.emphasizedDecelerate,
@@ -209,13 +209,11 @@ class _HomeShellState extends State<HomeShell> {
                           ],
                         ],
                       )
-                    : (_index == 1
-                          ? const SizedBox.shrink()
-                          : Text(
-                              titles[_index],
-                              style: Theme.of(context).textTheme.headlineSmall
-                                  ?.copyWith(fontWeight: FontWeight.w700),
-                            )),
+                    : Text(
+                        titles[_index],
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
               ),
             ),
             flexibleSpace: ClipRect(
@@ -238,7 +236,7 @@ class _HomeShellState extends State<HomeShell> {
                     ),
                     const SizedBox(width: 10),
                   ]
-                : (_index == 1 ? const [] : const [SizedBox(width: 4)]),
+                : const [SizedBox(width: 4)],
           ),
           body: isTablet
               ? Row(

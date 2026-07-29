@@ -215,34 +215,36 @@ class _CalendarPageState extends State<CalendarPage> {
                 maxCount: maxCount,
                 maxTextLength: maxTextLength,
                 heatFillColorBuilder: (heat) => _heatFillColor(colors, heat),
-                dayCellBuilder: ({
-                  required DateTime day,
-                  required bool isSelected,
-                  required bool isToday,
-                  required bool isOutside,
-                  required double heat,
-                }) {
-                  return _buildHeatDayCell(
-                    context: context,
-                    day: day,
-                    isSelected: isSelected,
-                    isToday: isToday,
-                    isOutside: isOutside,
-                    heat: heat,
-                  );
-                },
+                dayCellBuilder:
+                    ({
+                      required DateTime day,
+                      required bool isSelected,
+                      required bool isToday,
+                      required bool isOutside,
+                      required double heat,
+                    }) {
+                      return _buildHeatDayCell(
+                        context: context,
+                        day: day,
+                        isSelected: isSelected,
+                        isToday: isToday,
+                        isOutside: isOutside,
+                        heat: heat,
+                      );
+                    },
                 dayKey: _dayKey,
-                heatLevelBuilder: ({
-                  required _DayHeatStat? stat,
-                  required int maxCount,
-                  required int maxTextLength,
-                }) {
-                  return _heatLevel(
-                    stat,
-                    maxCount: maxCount,
-                    maxTextLength: maxTextLength,
-                  );
-                },
+                heatLevelBuilder:
+                    ({
+                      required _DayHeatStat? stat,
+                      required int maxCount,
+                      required int maxTextLength,
+                    }) {
+                      return _heatLevel(
+                        stat,
+                        maxCount: maxCount,
+                        maxTextLength: maxTextLength,
+                      );
+                    },
                 onDaySelected: (selectedDay, focusedDay) {
                   setState(() {
                     _selectedDay = selectedDay;
@@ -288,11 +290,7 @@ class _CalendarPageState extends State<CalendarPage> {
               child: sortedEntries.isEmpty
                   ? Center(
                       child: Text(
-                        tr(
-                          context,
-                          zh: '还没有任何日记',
-                          en: 'No entries yet',
-                        ),
+                        tr(context, zh: '还没有任何日记', en: 'No entries yet'),
                       ),
                     )
                   : ListView.separated(
@@ -524,10 +522,7 @@ class _CalendarTopHeader extends StatelessWidget {
         const SizedBox(width: 8),
         _PseudoDropdownLabel(text: yearLabel),
         const Spacer(),
-        _CircleIconButton(
-          icon: Icons.chevron_left_rounded,
-          onTap: onPrevMonth,
-        ),
+        _CircleIconButton(icon: Icons.chevron_left_rounded, onTap: onPrevMonth),
         const SizedBox(width: 4),
         _CircleIconButton(
           icon: Icons.chevron_right_rounded,
@@ -682,14 +677,10 @@ class _SelectedDayHeader extends StatelessWidget {
             borderRadius: BorderRadius.circular(999),
           ),
           child: Text(
-            tr(
+            tr(context, zh: '$count 条', en: '$count entries'),
+            style: Theme.of(
               context,
-              zh: '$count 条',
-              en: '$count entries',
-            ),
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              fontSize: 11,
-            ),
+            ).textTheme.labelSmall?.copyWith(fontSize: 11),
           ),
         ),
       ],
