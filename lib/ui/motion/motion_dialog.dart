@@ -45,15 +45,21 @@ Future<T?> showMotionDialog<T>({
       );
     },
     transitionBuilder: (dialogContext, animation, secondaryAnimation, child) {
+      if (MotionSpec.reduceMotion(dialogContext)) {
+        return FadeTransition(
+          opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+          child: child,
+        );
+      }
       final curved = CurvedAnimation(
         parent: animation,
         curve: MotionSpec.popupCurve,
-        reverseCurve: Curves.easeIn,
+        reverseCurve: MotionSpec.popupReverseCurve,
       );
       return FadeTransition(
         opacity: curved,
         child: ScaleTransition(
-          scale: Tween<double>(begin: 0.96, end: 1.0).animate(curved),
+          scale: Tween<double>(begin: 0.92, end: 1.0).animate(curved),
           child: child,
         ),
       );

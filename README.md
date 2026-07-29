@@ -11,7 +11,6 @@
   <img src="https://img.shields.io/badge/License-MIT-red.svg" alt="Platform" />
   <img src="https://img.shields.io/github/downloads/kid-depress/Dav_Diary/total" />
 </p>
-
 <p align="center">
   基于 Flutter 的智能增量同步日记应用,简单够用
 </p>

@@ -4,6 +4,7 @@ import 'package:diary/app/app_state.dart';
 import 'package:diary/app/i18n.dart';
 import 'package:diary/data/models/diary_entry.dart';
 import 'package:diary/ui/motion/motion_spec.dart';
+import 'package:diary/ui/motion/pressable_scale.dart';
 import 'package:diary/ui/motion/staggered_entrance.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -734,76 +735,86 @@ class _TimelineEntryCard extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Card(
-              color: selected
-                  ? colors.surfaceContainerHigh.withValues(alpha: 0.92)
-                  : colors.surfaceContainerLow.withValues(alpha: 0.86),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () => onOpen(entry),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+            child: PressableScale(
+              child: AnimatedContainer(
+                duration: MotionSpec.medium2,
+                curve: MotionSpec.emphasized,
+                decoration: BoxDecoration(
+                  color: selected
+                      ? colors.surfaceContainerHigh.withValues(alpha: 0.92)
+                      : colors.surfaceContainerLow.withValues(alpha: 0.86),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => onOpen(entry),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Text(
-                              headerText,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: colors.onSurfaceVariant,
-                                    fontWeight: FontWeight.w500,
-                                    fontSize: 12.5,
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  headerText,
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: colors.onSurfaceVariant,
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 12.5,
+                                      ),
+                                ),
+                              ),
+                              Icon(
+                                Icons.edit_rounded,
+                                size: 14,
+                                color: colors.onSurfaceVariant.withValues(
+                                  alpha: 0.78,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            content,
+                            maxLines: hasImage ? 2 : 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 14,
+                                  color: colors.onSurface,
+                                  height: 1.3,
+                                ),
+                          ),
+                          if (hasImage) ...[
+                            const SizedBox(height: 8),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: SizedBox(
+                                width: 76,
+                                height: 76,
+                                child: Image.file(
+                                  File(imagePath),
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, _, _) => Container(
+                                    color: colors.surfaceContainerHighest,
+                                    alignment: Alignment.center,
+                                    child: const Icon(
+                                      Icons.broken_image_outlined,
+                                    ),
                                   ),
-                            ),
-                          ),
-                          Icon(
-                            Icons.edit_rounded,
-                            size: 14,
-                            color: colors.onSurfaceVariant.withValues(
-                              alpha: 0.78,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        content,
-                        maxLines: hasImage ? 2 : 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 14,
-                          color: colors.onSurface,
-                          height: 1.3,
-                        ),
-                      ),
-                      if (hasImage) ...[
-                        const SizedBox(height: 8),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: SizedBox(
-                            width: 76,
-                            height: 76,
-                            child: Image.file(
-                              File(imagePath),
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, _, _) => Container(
-                                color: colors.surfaceContainerHighest,
-                                alignment: Alignment.center,
-                                child: const Icon(Icons.broken_image_outlined),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                      ],
-                    ],
+                          ],
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -851,7 +862,9 @@ class _TimelineRail extends StatelessWidget {
               bottom: 0,
               child: Container(width: 2, color: lineColor),
             ),
-          Container(
+          AnimatedContainer(
+            duration: MotionSpec.medium2,
+            curve: MotionSpec.emphasized,
             width: active ? 16 : 14,
             height: active ? 16 : 14,
             decoration: BoxDecoration(

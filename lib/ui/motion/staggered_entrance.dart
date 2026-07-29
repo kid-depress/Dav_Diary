@@ -1,3 +1,4 @@
+import 'package:diary/ui/motion/motion_spec.dart';
 import 'package:flutter/material.dart';
 
 class StaggeredEntrance extends StatefulWidget {
@@ -51,14 +52,18 @@ class _StaggeredEntranceState extends State<StaggeredEntrance>
 
     _opacity = CurvedAnimation(
       parent: _controller,
-      curve: Interval(delayFraction, 1.0, curve: Curves.easeOut),
+      curve: Interval(delayFraction, 1.0, curve: MotionSpec.standardDecelerate),
     );
     _slide = Tween<Offset>(
-      begin: const Offset(0, 0.05),
+      begin: const Offset(0, 0.06),
       end: Offset.zero,
     ).animate(CurvedAnimation(
       parent: _controller,
-      curve: Interval(delayFraction, 1.0, curve: Curves.easeOutCubic),
+      curve: Interval(
+        delayFraction,
+        1.0,
+        curve: MotionSpec.emphasizedDecelerate,
+      ),
     ));
 
     Future.microtask(() {
@@ -74,6 +79,10 @@ class _StaggeredEntranceState extends State<StaggeredEntrance>
 
   @override
   Widget build(BuildContext context) {
+    // Reduce-motion: show the item in place, no slide-up or staggered fade.
+    if (MotionSpec.reduceMotion(context)) {
+      return widget.child;
+    }
     return FadeTransition(
       opacity: _opacity,
       child: SlideTransition(position: _slide, child: widget.child),

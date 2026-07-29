@@ -7,6 +7,7 @@ import 'package:diary/services/daily_quote_service.dart';
 import 'package:diary/services/storage_service.dart';
 import 'package:diary/services/sync_service.dart';
 import 'package:diary/ui/home/home_shell.dart';
+import 'package:diary/ui/motion/motion_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
@@ -193,6 +194,13 @@ class _DiaryAppBootstrapState extends State<DiaryAppBootstrap> {
       scaffoldBackgroundColor: scheme.surface,
       dividerColor: Colors.transparent,
       textTheme: textTheme,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: MotionPageTransitionsBuilder(),
+          TargetPlatform.iOS: MotionPageTransitionsBuilder(),
+          TargetPlatform.fuchsia: MotionPageTransitionsBuilder(),
+        },
+      ),
       cardTheme: CardThemeData(
         margin: EdgeInsets.zero,
         elevation: 0,

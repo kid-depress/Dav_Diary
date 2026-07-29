@@ -3,6 +3,9 @@ import 'package:diary/app/i18n.dart';
 import 'package:diary/data/models/webdav_config.dart';
 import 'package:diary/ui/motion/motion_dialog.dart';
 import 'package:diary/ui/motion/motion_route.dart';
+import 'package:diary/ui/motion/motion_spec.dart';
+import 'package:diary/ui/motion/pressable_scale.dart';
+import 'package:diary/ui/motion/staggered_entrance.dart';
 import 'package:diary/ui/settings/trash_page.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -60,51 +63,60 @@ class SettingsPage extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        const _SettingsGroup(
-          titleZh: '数据',
-          titleEn: 'Data',
-          children: [_ClearCacheTile(), _TrashTile(), _WebDavTile()],
+        const StaggeredEntrance(
+          index: 0,
+          child: _SettingsGroup(
+            titleZh: '数据',
+            titleEn: 'Data',
+            children: [_ClearCacheTile(), _TrashTile(), _WebDavTile()],
+          ),
         ),
         const SizedBox(height: 16),
-        const _SettingsGroup(
-          titleZh: '外观',
-          titleEn: 'Appearance',
-          children: [_AppearanceTile()],
+        const StaggeredEntrance(
+          index: 1,
+          child: _SettingsGroup(
+            titleZh: '外观',
+            titleEn: 'Appearance',
+            children: [_AppearanceTile()],
+          ),
         ),
         const SizedBox(height: 16),
-        _SettingsGroup(
-          titleZh: '关于',
-          titleEn: 'About',
-          children: [
-            _SettingsActionTile(
-              icon: Icons.info_outline,
-              title: tr(context, zh: '项目主页', en: 'Project Page'),
-              subtitle: tr(
-                context,
-                zh: '在 GitHub 上查看源代码',
-                en: 'Open project repository on GitHub',
+        StaggeredEntrance(
+          index: 2,
+          child: _SettingsGroup(
+            titleZh: '关于',
+            titleEn: 'About',
+            children: [
+              _SettingsActionTile(
+                icon: Icons.info_outline,
+                title: tr(context, zh: '项目主页', en: 'Project Page'),
+                subtitle: tr(
+                  context,
+                  zh: '在 GitHub 上查看源代码',
+                  en: 'Open project repository on GitHub',
+                ),
+                trailing: const Icon(Icons.open_in_new, size: 18),
+                onTap: () => _openLink(
+                  context,
+                  'https://github.com/kid-depress/Dav_Diary',
+                ),
               ),
-              trailing: const Icon(Icons.open_in_new, size: 18),
-              onTap: () => _openLink(
-                context,
-                'https://github.com/kid-depress/Dav_Diary',
+              _SettingsActionTile(
+                icon: Icons.support_agent_outlined,
+                title: tr(context, zh: '联系作者', en: 'Contact Author'),
+                subtitle: tr(
+                  context,
+                  zh: '反馈建议与问题',
+                  en: 'Feedback and suggestions',
+                ),
+                trailing: const Icon(Icons.open_in_new, size: 18),
+                onTap: () => _openLink(
+                  context,
+                  'https://qun.qq.com/universal-share/share?ac=1&authKey=OwDtxNxyG47DX3WMUDnu91lAyFdkzIU613RHHxCVWrAs2iL15plLPUnpyj95SfjM&busi_data=eyJncm91cENvZGUiOiIxMDkxMTI1NDk1IiwidG9rZW4iOiJjMmM1d2FVMzNOd0NyaXVEeThGR2NjZFdNMVhZKzRpbzlhZ3krQS9lWWY2MzFnOUlGa1plRFErUHVwNW9NUUZ0IiwidWluIjoiMzQ2ODk0MzM2NyJ9&data=pg995AanOfOHor1w9a0u6DhsRI9j991Z3W8kmfoPzum9XTgpaJlgnyU8gCjJ2y-TP6KEkaKxRh1VkEECMt7Hug&svctype=4&tempid=h5_group_info',
+                ),
               ),
-            ),
-            _SettingsActionTile(
-              icon: Icons.support_agent_outlined,
-              title: tr(context, zh: '联系作者', en: 'Contact Author'),
-              subtitle: tr(
-                context,
-                zh: '反馈建议与问题',
-                en: 'Feedback and suggestions',
-              ),
-              trailing: const Icon(Icons.open_in_new, size: 18),
-              onTap: () => _openLink(
-                context,
-                'https://qun.qq.com/universal-share/share?ac=1&authKey=OwDtxNxyG47DX3WMUDnu91lAyFdkzIU613RHHxCVWrAs2iL15plLPUnpyj95SfjM&busi_data=eyJncm91cENvZGUiOiIxMDkxMTI1NDk1IiwidG9rZW4iOiJjMmM1d2FVMzNOd0NyaXVEeThGR2NjZFdNMVhZKzRpbzlhZ3krQS9lWWY2MzFnOUlGa1plRFErUHVwNW9NUUZ0IiwidWluIjoiMzQ2ODk0MzM2NyJ9&data=pg995AanOfOHor1w9a0u6DhsRI9j991Z3W8kmfoPzum9XTgpaJlgnyU8gCjJ2y-TP6KEkaKxRh1VkEECMt7Hug&svctype=4&tempid=h5_group_info',
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -170,55 +182,57 @@ class _SettingsActionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Material(
-      color: colors.surfaceContainerLow,
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
+    return PressableScale(
+      child: Material(
+        color: colors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(20),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: colors.surfaceContainerHighest,
-                ),
-                alignment: Alignment.center,
-                child: Icon(icon, size: 20, color: colors.onSurfaceVariant),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                        height: 1.35,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              trailing ??
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    color: colors.onSurfaceVariant,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: colors.surfaceContainerHighest,
                   ),
-            ],
+                  alignment: Alignment.center,
+                  child: Icon(icon, size: 20, color: colors.onSurfaceVariant),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                trailing ??
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: colors.onSurfaceVariant,
+                    ),
+              ],
+            ),
           ),
         ),
       ),
@@ -513,8 +527,8 @@ class _ThemeSeedColorOption extends StatelessWidget {
       borderRadius: BorderRadius.circular(14),
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
+        duration: MotionSpec.short4,
+        curve: MotionSpec.emphasizedDecelerate,
         width: 38,
         height: 38,
         decoration: BoxDecoration(
