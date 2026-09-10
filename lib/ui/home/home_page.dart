@@ -41,6 +41,28 @@ class _HomePageState extends State<HomePage> {
   static const _gridSpacing = 8.0;
   final ScrollController _scrollController = ScrollController();
   late int _handledScrollToTopSignal;
+  List<DiaryEntry>? _lastEntries;
+  String? _lastQuery;
+  List<DiaryEntry> _filteredEntries = const [];
+
+  List<DiaryEntry> _filterEntries(List<DiaryEntry> entries, String query) {
+    if (identical(entries, _lastEntries) && query == _lastQuery) {
+      return _filteredEntries;
+    }
+    _lastEntries = entries;
+    _lastQuery = query;
+    _filteredEntries =
+        entries
+            .where(
+              (entry) =>
+                  query.isEmpty ||
+                  entry.title.toLowerCase().contains(query) ||
+                  entry.plainText.toLowerCase().contains(query),
+            )
+            .toList()
+          ..sort((a, b) => b.eventAt.compareTo(a.eventAt));
+    return _filteredEntries;
+  }
 
   int _dynamicColumnCount(double width) {
     if (width < 700) {
@@ -97,14 +119,7 @@ class _HomePageState extends State<HomePage> {
     return Consumer<DiaryAppState>(
       builder: (context, appState, _) {
         final query = widget.query.trim().toLowerCase();
-        final filtered = appState.entries.where((entry) {
-          if (query.isEmpty) {
-            return true;
-          }
-          final title = entry.title.toLowerCase();
-          final body = entry.plainText.toLowerCase();
-          return title.contains(query) || body.contains(query);
-        }).toList()..sort((a, b) => b.eventAt.compareTo(a.eventAt));
+        final filtered = _filterEntries(appState.entries, query);
 
         if (filtered.isEmpty) {
           return _EmptyState(onCreate: widget.onCreate);
@@ -321,11 +336,14 @@ class _GridEntryCard extends StatelessWidget {
                         entry.location.trim(),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: colors.onSurfaceVariant.withValues(alpha: 0.86),
-                          fontWeight: FontWeight.w400,
-                          fontSize: 11,
-                        ),
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: colors.onSurfaceVariant.withValues(
+                                alpha: 0.86,
+                              ),
+                              fontWeight: FontWeight.w400,
+                              fontSize: 11,
+                            ),
                       ),
                     ],
                     const SizedBox(height: 6),
@@ -333,7 +351,9 @@ class _GridEntryCard extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            DateFormat(hasMeta ? 'yyyy/M/d' : 'yyyy/M/d HH:mm:ss').format(entry.eventAt),
+                            DateFormat(
+                              hasMeta ? 'yyyy/M/d' : 'yyyy/M/d HH:mm:ss',
+                            ).format(entry.eventAt),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.labelLarge

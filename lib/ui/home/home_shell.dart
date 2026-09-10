@@ -1,5 +1,3 @@
-import 'dart:ui' as ui;
-
 import 'package:diary/app/app_state.dart';
 import 'package:diary/app/i18n.dart';
 import 'package:diary/data/models/diary_entry.dart';
@@ -219,13 +217,8 @@ class _HomeShellState extends State<HomeShell> {
               ),
             ),
             flexibleSpace: ClipRect(
-              child: BackdropFilter(
-                filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colors.surface.withValues(alpha: 0.86),
-                  ),
-                ),
+              child: DecoratedBox(
+                decoration: BoxDecoration(color: colors.surface),
               ),
             ),
             actions: _index == 0
@@ -349,31 +342,25 @@ class _HomeShellState extends State<HomeShell> {
                         padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(28),
-                          child: BackdropFilter(
-                            filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: colors.surface.withValues(alpha: 0.9),
-                                borderRadius: BorderRadius.circular(28),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: colors.shadow.withValues(
-                                      alpha: 0.07,
-                                    ),
-                                    blurRadius: 22,
-                                    offset: const Offset(0, 8),
-                                  ),
-                                ],
-                              ),
-                              child: NavigationBar(
-                                height: 58,
-                                selectedIndex: _index,
-                                labelBehavior:
-                                    NavigationDestinationLabelBehavior
-                                        .alwaysHide,
-                                onDestinationSelected: _selectTab,
-                                destinations: destinations,
-                              ),
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: colors.surface,
+                              borderRadius: BorderRadius.circular(28),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: colors.shadow.withValues(alpha: 0.07),
+                                  blurRadius: 22,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: NavigationBar(
+                              height: 58,
+                              selectedIndex: _index,
+                              labelBehavior:
+                                  NavigationDestinationLabelBehavior.alwaysHide,
+                              onDestinationSelected: _selectTab,
+                              destinations: destinations,
                             ),
                           ),
                         ),

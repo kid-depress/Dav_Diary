@@ -249,6 +249,9 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
                     else
                       Image.file(
                         File(resolvedPath),
+                        cacheWidth:
+                            (size * MediaQuery.devicePixelRatioOf(context))
+                                .ceil(),
                         width: size,
                         height: size,
                         fit: BoxFit.cover,
@@ -435,8 +438,7 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
                 padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
                 child: Builder(
                   builder: (context) {
-                    final baseStyles =
-                        DefaultStyles.getInstance(context);
+                    final baseStyles = DefaultStyles.getInstance(context);
                     final smallerStyles = DefaultStyles(
                       h1: baseStyles.h1,
                       h2: baseStyles.h2,
@@ -444,41 +446,28 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
                       h4: baseStyles.h4,
                       h5: baseStyles.h5,
                       h6: baseStyles.h6,
-                      paragraph:
-                          baseStyles.paragraph?.copyWith(
-                            style: baseStyles.paragraph!.style.copyWith(
-                              fontSize: 14,
-                            ),
-                          ),
-                      lists: baseStyles.lists?.copyWith(
-                            style: baseStyles.lists!.style.copyWith(
-                              fontSize: 14,
-                            ),
-                          ),
-                      quote: baseStyles.quote?.copyWith(
-                        style: baseStyles.quote!.style.copyWith(
+                      paragraph: baseStyles.paragraph?.copyWith(
+                        style: baseStyles.paragraph!.style.copyWith(
                           fontSize: 14,
                         ),
+                      ),
+                      lists: baseStyles.lists?.copyWith(
+                        style: baseStyles.lists!.style.copyWith(fontSize: 14),
+                      ),
+                      quote: baseStyles.quote?.copyWith(
+                        style: baseStyles.quote!.style.copyWith(fontSize: 14),
                       ),
                       code: baseStyles.code?.copyWith(
-                        style: baseStyles.code!.style.copyWith(
-                          fontSize: 14,
-                        ),
+                        style: baseStyles.code!.style.copyWith(fontSize: 14),
                       ),
                       indent: baseStyles.indent?.copyWith(
-                        style: baseStyles.indent!.style.copyWith(
-                          fontSize: 14,
-                        ),
+                        style: baseStyles.indent!.style.copyWith(fontSize: 14),
                       ),
                       align: baseStyles.align?.copyWith(
-                        style: baseStyles.align!.style.copyWith(
-                          fontSize: 14,
-                        ),
+                        style: baseStyles.align!.style.copyWith(fontSize: 14),
                       ),
                       leading: baseStyles.leading?.copyWith(
-                        style: baseStyles.leading!.style.copyWith(
-                          fontSize: 14,
-                        ),
+                        style: baseStyles.leading!.style.copyWith(fontSize: 14),
                       ),
                       placeHolder: baseStyles.placeHolder,
                       bold: baseStyles.bold,
@@ -494,13 +483,10 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
                       sizeSmall: baseStyles.sizeSmall,
                       sizeLarge: baseStyles.sizeLarge,
                       sizeHuge: baseStyles.sizeHuge,
-                      lineHeightNormal:
-                          baseStyles.lineHeightNormal,
+                      lineHeightNormal: baseStyles.lineHeightNormal,
                       lineHeightTight: baseStyles.lineHeightTight,
-                      lineHeightOneAndHalf:
-                          baseStyles.lineHeightOneAndHalf,
-                      lineHeightDouble:
-                          baseStyles.lineHeightDouble,
+                      lineHeightOneAndHalf: baseStyles.lineHeightOneAndHalf,
+                      lineHeightDouble: baseStyles.lineHeightDouble,
                       palette: baseStyles.palette,
                     );
                     return QuillEditor.basic(

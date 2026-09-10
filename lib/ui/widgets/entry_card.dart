@@ -15,9 +15,10 @@ class EntryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final imagePath = entry.firstImagePath;
     final dateText = DateFormat('MM-dd HH:mm').format(entry.eventAt);
-    final metaText = [entry.mood.trim(), entry.weather.trim()]
-        .where((value) => value.isNotEmpty)
-        .join('  ');
+    final metaText = [
+      entry.mood.trim(),
+      entry.weather.trim(),
+    ].where((value) => value.isNotEmpty).join('  ');
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -31,6 +32,7 @@ class EntryCard extends StatelessWidget {
                 child: Image.file(
                   File(imagePath),
                   fit: BoxFit.cover,
+                  cacheWidth: 600,
                   errorBuilder: (context, error, stackTrace) {
                     return Container(
                       color: Theme.of(

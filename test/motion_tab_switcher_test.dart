@@ -3,6 +3,38 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('unvisited tabs mount only when selected and then stay alive', (
+    tester,
+  ) async {
+    var index = 0;
+    late StateSetter update;
+    final keys = List.generate(3, (_) => GlobalKey());
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            update = setState;
+            return MotionTabSwitcher(
+              index: index,
+              children: [for (final key in keys) SizedBox(key: key)],
+            );
+          },
+        ),
+      ),
+    );
+    expect(keys[0].currentContext, isNotNull);
+    expect(keys[1].currentContext, isNull);
+    expect(keys[2].currentContext, isNull);
+    update(() => index = 1);
+    await tester.pumpAndSettle();
+    final second = keys[1].currentContext;
+    expect(second, isNotNull);
+    update(() => index = 0);
+    await tester.pumpAndSettle();
+    expect(keys[1].currentContext, same(second));
+    expect(keys[2].currentContext, isNull);
+  });
+
   testWidgets('rapid switches keep opacity continuous and show latest tab', (
     tester,
   ) async {

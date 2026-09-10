@@ -19,6 +19,7 @@ class MotionTabSwitcher extends StatefulWidget {
 class _MotionTabSwitcherState extends State<MotionTabSwitcher>
     with SingleTickerProviderStateMixin {
   late int _visibleIndex = widget.index;
+  late final Set<int> _visited = {widget.index};
   bool _reduceMotion = false;
   late final AnimationController _controller = AnimationController(
     vsync: this,
@@ -50,6 +51,7 @@ class _MotionTabSwitcherState extends State<MotionTabSwitcher>
   void didUpdateWidget(covariant MotionTabSwitcher oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.index == widget.index) return;
+    _visited.add(widget.index);
     if (_reduceMotion) {
       _visibleIndex = widget.index;
       _controller.value = 1;
@@ -83,7 +85,9 @@ class _MotionTabSwitcherState extends State<MotionTabSwitcher>
                 enabled: i == _visibleIndex,
                 child: ExcludeFocus(
                   excluding: i != _visibleIndex,
-                  child: RepaintBoundary(child: widget.children[i]),
+                  child: _visited.contains(i)
+                      ? RepaintBoundary(child: widget.children[i])
+                      : const SizedBox.expand(),
                 ),
               ),
           ],

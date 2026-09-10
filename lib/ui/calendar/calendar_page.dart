@@ -792,6 +792,12 @@ class _TimelineEntryCard extends StatelessWidget {
                                 child: Image.file(
                                   File(imagePath),
                                   fit: BoxFit.cover,
+                                  cacheWidth:
+                                      (76 *
+                                              MediaQuery.devicePixelRatioOf(
+                                                context,
+                                              ))
+                                          .ceil(),
                                   errorBuilder: (context, _, _) => Container(
                                     color: colors.surfaceContainerHighest,
                                     alignment: Alignment.center,

@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:diary/app/app_state.dart';
 import 'package:diary/app/i18n.dart';
@@ -638,6 +637,13 @@ class _EditorPageState extends State<EditorPage> {
     final color = active ? Theme.of(context).colorScheme.primary : null;
     return PressableScale(
       child: IconButton(
+        iconSize: 22,
+        style: IconButton.styleFrom(
+          minimumSize: const Size(44, 36),
+          maximumSize: const Size(44, 36),
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
         tooltip: tooltip,
         onPressed: () {
           unawaited(HapticFeedback.lightImpact());
@@ -737,10 +743,7 @@ class _EditorPageState extends State<EditorPage> {
                 gradient: LinearGradient(
                   begin: Alignment.centerRight,
                   end: Alignment.centerLeft,
-                  colors: [
-                    colors.surface,
-                    colors.surface.withValues(alpha: 0),
-                  ],
+                  colors: [colors.surface, colors.surface.withValues(alpha: 0)],
                 ),
               ),
             ),
@@ -751,41 +754,17 @@ class _EditorPageState extends State<EditorPage> {
   }
 
   Widget _buildAttachmentsStrip() {
-    final colors = Theme.of(context).colorScheme;
-    final hasItems = _attachments.isNotEmpty;
     return SizedBox(
       height: 94,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: hasItems ? _attachments.length + 1 : 1,
+        itemCount: _attachments.length,
         separatorBuilder: (_, _) => const SizedBox(width: 10),
         itemBuilder: (context, index) {
-          if (index == 0) {
-            return InkWell(
-              onTap: _openAttachmentActions,
-              borderRadius: BorderRadius.circular(16),
-              child: Ink(
-                width: 90,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  color: colors.surfaceContainerHigh,
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.add_photo_alternate_outlined),
-                    const SizedBox(height: 4),
-                    Text(tr(context, zh: '附件', en: 'Attach')),
-                  ],
-                ),
-              ),
-            );
-          }
-          final attachment = _attachments[index - 1];
           return _AttachmentThumb(
-            attachment: attachment,
-            onTap: () => _editCaption(index - 1),
-            onRemove: () => _removeAttachment(index - 1),
+            attachment: _attachments[index],
+            onTap: () => _editCaption(index),
+            onRemove: () => _removeAttachment(index),
           );
         },
       ),
@@ -793,7 +772,7 @@ class _EditorPageState extends State<EditorPage> {
   }
 
   Widget _buildFloatingToolbar(double keyboardInset) {
-    final bottomInset = keyboardInset > 0 ? 8.0 : 12.0;
+    final bottomInset = keyboardInset > 0 ? 6.0 : 8.0;
     final colors = Theme.of(context).colorScheme;
     return AnimatedPositioned(
       duration: MotionSpec.popupDuration,
@@ -805,17 +784,22 @@ class _EditorPageState extends State<EditorPage> {
         top: false,
         bottom: keyboardInset <= 0,
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Material(
-              elevation: 0,
-              color: colors.surface.withValues(alpha: 0.88),
+          borderRadius: BorderRadius.circular(16),
+          child: Material(
+            elevation: 0,
+            color: colors.surface,
+            child: SizedBox(
+              height: 36,
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 6),
                 child: Row(
                   children: [
+                    _formatButton(
+                      icon: Icons.add_photo_alternate_outlined,
+                      tooltip: tr(context, zh: '添加附件', en: 'Add attachment'),
+                      onTap: _openAttachmentActions,
+                    ),
                     _formatButton(
                       icon: Icons.format_bold,
                       tooltip: tr(context, zh: '加粗', en: 'Bold'),
@@ -923,9 +907,10 @@ class _EditorPageState extends State<EditorPage> {
                           ),
                         ),
                       ],
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 12),
-                        child: Icon(Icons.tune),
+                      child: const SizedBox(
+                        width: 44,
+                        height: 36,
+                        child: Icon(Icons.tune, size: 22),
                       ),
                     ),
                   ],
@@ -942,6 +927,7 @@ class _EditorPageState extends State<EditorPage> {
   Widget build(BuildContext context) {
     final isSaving = _saving;
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+    final editorBottomPadding = 36.0 + (keyboardInset > 0 ? 6.0 : 8.0) + 8.0;
     final colors = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -971,14 +957,21 @@ class _EditorPageState extends State<EditorPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildStatusBar(),
-                      const SizedBox(height: 10),
-                      _buildAttachmentsStrip(),
+                      if (_attachments.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        _buildAttachmentsStrip(),
+                      ],
                     ],
                   ),
                 ),
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 100),
+                    padding: EdgeInsets.fromLTRB(
+                      12,
+                      0,
+                      12,
+                      editorBottomPadding,
+                    ),
                     child: Material(
                       color: colors.surfaceContainerLow,
                       borderRadius: BorderRadius.circular(22),
@@ -1003,7 +996,7 @@ class _EditorPageState extends State<EditorPage> {
             Positioned(
               left: 22,
               right: 22,
-              bottom: 104,
+              bottom: editorBottomPadding + 4,
               child: IgnorePointer(
                 child: Container(
                   height: 14,
