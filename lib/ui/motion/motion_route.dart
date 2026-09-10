@@ -25,33 +25,31 @@ class MotionPageTransition extends StatelessWidget {
     // Reduce-motion: a plain opacity cross-fade, no slide.
     if (MotionSpec.reduceMotion(context)) {
       return FadeTransition(
-        opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+        opacity: animation.drive(CurveTween(curve: Curves.easeOut)),
         child: child,
       );
     }
 
-    final enter = CurvedAnimation(
-      parent: animation,
-      curve: MotionSpec.emphasized,
-      reverseCurve: MotionSpec.emphasizedAccelerate,
+    final enter = animation.drive(
+      CurveTween(curve: MotionSpec.standardDecelerate),
     );
-    final exit = CurvedAnimation(
-      parent: secondaryAnimation,
-      curve: MotionSpec.emphasized,
-      reverseCurve: MotionSpec.emphasizedAccelerate,
+    final exit = secondaryAnimation.drive(
+      CurveTween(curve: MotionSpec.standardDecelerate),
     );
 
     return FadeTransition(
       opacity: enter,
       child: SlideTransition(
+        textDirection: Directionality.of(context),
         position: Tween<Offset>(
-          begin: const Offset(0.06, 0),
+          begin: const Offset(0.035, 0),
           end: Offset.zero,
         ).animate(enter),
         child: SlideTransition(
+          textDirection: Directionality.of(context),
           position: Tween<Offset>(
             begin: Offset.zero,
-            end: const Offset(-0.035, 0),
+            end: const Offset(-0.015, 0),
           ).animate(exit),
           child: child,
         ),
@@ -85,7 +83,7 @@ class MotionPageTransitionsBuilder extends PageTransitionsBuilder {
 Route<T> buildPageTransitionRoute<T>(Widget page) {
   return PageRouteBuilder<T>(
     transitionDuration: MotionSpec.pageTransitionDuration,
-    reverseTransitionDuration: MotionSpec.pageTransitionDuration,
+    reverseTransitionDuration: MotionSpec.short4,
     pageBuilder: (context, animation, secondaryAnimation) => page,
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
       return MotionPageTransition(
@@ -105,19 +103,17 @@ Route<T> buildCardExpandPreviewRoute<T>(Widget page) {
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
       if (MotionSpec.reduceMotion(context)) {
         return FadeTransition(
-          opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+          opacity: animation.drive(CurveTween(curve: Curves.easeOut)),
           child: child,
         );
       }
-      final curved = CurvedAnimation(
-        parent: animation,
-        curve: MotionSpec.emphasizedDecelerate,
-        reverseCurve: MotionSpec.emphasizedAccelerate,
+      final curved = animation.drive(
+        CurveTween(curve: MotionSpec.standardDecelerate),
       );
       return FadeTransition(
         opacity: curved,
         child: ScaleTransition(
-          scale: Tween<double>(begin: 0.94, end: 1).animate(curved),
+          scale: Tween<double>(begin: 0.98, end: 1).animate(curved),
           child: child,
         ),
       );

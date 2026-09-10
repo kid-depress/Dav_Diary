@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:io';
 
 import 'package:diary/data/models/diary_entry.dart';
@@ -223,9 +223,57 @@ class DiaryAppState extends ChangeNotifier {
   }
 
   Future<void> updateWebDavConfig(WebDavConfig config) async {
-    _webDavConfig = config;
-    await _settingsRepository.saveWebDavConfig(config);
+    if (_syncing) {
+      throw StateError('Please wait for the current sync to finish');
+    }
+    _syncing = true;
     notifyListeners();
+    try {
+      if (_webDavConfig.targetIdentity != config.targetIdentity) {
+        // Recover cloud-only originals before their source is no longer active.
+        // A failed recovery leaves the previous configuration in place.
+        for (final entry in await _diaryRepository.listAll()) {
+          final attachments = [...entry.attachments];
+          var changed = false;
+          for (var i = 0; i < attachments.length; i++) {
+            final attachment = attachments[i];
+            if (attachment.remotePath.isEmpty ||
+                (attachment.path.isNotEmpty &&
+                    await File(attachment.path).exists())) {
+              continue;
+            }
+            final restored = await _syncService.restoreAttachment(attachment);
+            if (restored == null) {
+              throw StateError(
+                'Restore attachments from the previous sync storage before switching',
+              );
+            }
+            attachments[i] = restored;
+            changed = true;
+          }
+          if (changed) {
+            await _diaryRepository.upsert(
+              entry.copyWith(attachments: attachments),
+            );
+          }
+        }
+        // Old remote paths must not make originals eligible for cache eviction
+        // before the first successful upload to the new destination.
+        for (final entry in await _diaryRepository.listAll()) {
+          await _diaryRepository.updateSyncedAttachments(entry, [
+            for (final attachment in entry.attachments)
+              attachment.copyWith(remotePath: '', thumbnailRemotePath: ''),
+          ]);
+        }
+      }
+      await _settingsRepository.saveWebDavConfig(config);
+      _webDavConfig = config;
+      _lastSyncAt = await _settingsRepository.loadLastSyncAt();
+      await refreshEntries();
+    } finally {
+      _syncing = false;
+      notifyListeners();
+    }
   }
 
   Future<bool> testWebDavConnection() {

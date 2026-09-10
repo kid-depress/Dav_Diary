@@ -11,7 +11,7 @@ import 'package:diary/services/storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
-import 'package:webdav_client/webdav_client.dart' as webdav;
+import 'package:diary/services/sync_remote_store.dart';
 
 class SyncResult {
   const SyncResult({
@@ -273,26 +273,9 @@ class SyncService {
   final SettingsRepository _settingsRepository;
   final StorageService _storageService = const StorageService();
 
-  webdav.Client _buildClient(WebDavConfig config) {
-    final client = webdav.newClient(
-      config.serverUrl.trim(),
-      user: config.username.trim(),
-      password: config.password.trim(),
-      debug: false,
-    );
-    client.setConnectTimeout(5000);
-    client.setSendTimeout(5000);
-    client.setReceiveTimeout(5000);
-    client.setHeaders({'accept-charset': 'utf-8'});
-    return client;
-  }
-
   String _normalizeDir(String dir) {
-    final withPrefix = dir.startsWith('/') ? dir : '/$dir';
-    if (withPrefix.endsWith('/')) {
-      return withPrefix.substring(0, withPrefix.length - 1);
-    }
-    return withPrefix;
+    final normalized = dir.trim().replaceAll(RegExp(r'^/+|/+$'), '');
+    return normalized.isEmpty ? '' : '/$normalized';
   }
 
   String _entryDir(String root) => '$root/entries';
@@ -305,9 +288,7 @@ class SyncService {
   Future<void> markEntryHardDeleted(String id) async {
     final local = await _diaryRepository.getById(id);
     final state = await _loadSyncStateForEntry(id);
-    final revision = state.lastSyncedRevision.trim().isNotEmpty
-        ? state.lastSyncedRevision
-        : await _newRevisionString();
+    final revision = await _newRevisionString();
     final deletedAt = DateTime.now();
     final record = _PendingHardDelete(
       id: id,
@@ -359,9 +340,8 @@ class SyncService {
         await task();
       }
     }
-    await Future.wait(
-      List.generate(concurrency, (_) => worker()),
-    );
+
+    await Future.wait(List.generate(concurrency, (_) => worker()));
   }
 
   bool _isPermanentError(Object e) {
@@ -503,7 +483,7 @@ class SyncService {
   }
 
   Future<void> _ensureRemoteLayout(
-    webdav.Client client,
+    SyncRemoteStore client,
     String remoteRoot,
   ) async {
     await client.mkdirAll(_entryDir(remoteRoot));
@@ -515,7 +495,7 @@ class SyncService {
   String _manifestPath(String root) => '$root/manifest.json';
 
   Future<_RemoteManifest> _loadRemoteManifest(
-    webdav.Client client,
+    SyncRemoteStore client,
     String remoteRoot,
   ) async {
     final entries = <String, _ManifestEntry>{};
@@ -548,7 +528,8 @@ class SyncService {
           }
         }
       }
-    } catch (_) {
+    } catch (e) {
+      if (e is RemoteStoreException && !e.isNotFound) rethrow;
       // Manifest missing or corrupted — rebuild from directory scan.
     }
 
@@ -578,9 +559,13 @@ class SyncService {
               contentFingerprint: envelope.contentFingerprint,
               attachmentRefs: _collectAttachmentRefs(envelope.entry),
             );
-          } catch (_) {}
+          } catch (e) {
+            if (e is RemoteStoreException) rethrow;
+          }
         }
-      } catch (_) {}
+      } catch (e) {
+        if (e is RemoteStoreException) rethrow;
+      }
     }
 
     // ── Backward compat: load legacy tombstone files (v1) ─────────
@@ -605,16 +590,20 @@ class SyncService {
               continue;
             }
             tombstones[record.id] = record;
-          } catch (_) {}
+          } catch (e) {
+            if (e is RemoteStoreException) rethrow;
+          }
         }
-      } catch (_) {}
+      } catch (e) {
+        if (e is RemoteStoreException) rethrow;
+      }
     }
 
     return _RemoteManifest(entries: entries, tombstones: tombstones);
   }
 
   Future<void> _saveRemoteManifest(
-    webdav.Client client,
+    SyncRemoteStore client,
     String remoteRoot,
     _RemoteManifest manifest,
   ) async {
@@ -641,7 +630,7 @@ class SyncService {
   }
 
   Future<_EntryEnvelope> _downloadRemoteEntry(
-    webdav.Client client,
+    SyncRemoteStore client,
     String remoteRoot,
     _ManifestEntry manifestEntry,
   ) async {
@@ -655,7 +644,7 @@ class SyncService {
   }
 
   Future<Map<String, DateTime>> _listRemoteAttachmentFiles(
-    webdav.Client client,
+    SyncRemoteStore client,
     String remoteRoot,
   ) async {
     final files = <String, DateTime>{};
@@ -663,7 +652,8 @@ class SyncService {
       final attachments = await client.readDir(_attachmentDir(remoteRoot));
       for (final item in attachments) {
         if (item.isDir != true && (item.path ?? '').isNotEmpty) {
-          files[item.path!] = item.mTime ?? DateTime.fromMillisecondsSinceEpoch(0);
+          files[item.path!] =
+              item.mTime ?? DateTime.fromMillisecondsSinceEpoch(0);
         }
       }
     } catch (_) {}
@@ -671,7 +661,8 @@ class SyncService {
       final thumbs = await client.readDir(_thumbDir(remoteRoot));
       for (final item in thumbs) {
         if (item.isDir != true && (item.path ?? '').isNotEmpty) {
-          files[item.path!] = item.mTime ?? DateTime.fromMillisecondsSinceEpoch(0);
+          files[item.path!] =
+              item.mTime ?? DateTime.fromMillisecondsSinceEpoch(0);
         }
       }
     } catch (_) {}
@@ -679,7 +670,7 @@ class SyncService {
   }
 
   Future<Map<String, dynamic>> _buildRemoteAttachment(
-    webdav.Client client,
+    SyncRemoteStore client,
     String remoteRoot,
     DiaryAttachment attachment, {
     Set<String> existingRemoteFiles = const <String>{},
@@ -734,7 +725,7 @@ class SyncService {
   }
 
   Future<_EntryEnvelope> _uploadEntry(
-    webdav.Client client,
+    SyncRemoteStore client,
     String remoteRoot,
     DiaryEntry entry, {
     required String revision,
@@ -742,13 +733,14 @@ class SyncService {
   }) async {
     final syncAttachments = <Map<String, dynamic>>[];
     final mergedAttachments = <DiaryAttachment>[];
-    final attachmentFutures = entry.attachments
-        .map((a) => _buildRemoteAttachment(
-              client,
-              remoteRoot,
-              a,
-              existingRemoteFiles: existingRemoteFiles,
-            ));
+    final attachmentFutures = entry.attachments.map(
+      (a) => _buildRemoteAttachment(
+        client,
+        remoteRoot,
+        a,
+        existingRemoteFiles: existingRemoteFiles,
+      ),
+    );
     final remoteMetas = await Future.wait(attachmentFutures);
     for (int i = 0; i < entry.attachments.length; i++) {
       final attachment = entry.attachments[i];
@@ -786,7 +778,10 @@ class SyncService {
     return envelope;
   }
 
-  Future<String> _downloadThumb(webdav.Client client, String remotePath) async {
+  Future<String> _downloadThumb(
+    SyncRemoteStore client,
+    String remotePath,
+  ) async {
     final bytes = Uint8List.fromList(await client.read(remotePath));
     final saved = await _storageService.saveAttachmentBytesWithThumbnail(
       bytes,
@@ -798,7 +793,7 @@ class SyncService {
   }
 
   Future<Map<String, dynamic>> _materializeRemoteEntry(
-    webdav.Client client,
+    SyncRemoteStore client,
     Map<String, dynamic> raw,
     DiaryEntry? localEntry,
   ) async {
@@ -873,7 +868,7 @@ class SyncService {
   }
 
   Future<Set<String>> _collectReferencedAttachmentPaths(
-    webdav.Client client,
+    SyncRemoteStore client,
     String remoteRoot,
     Map<String, _ManifestEntry> entries,
   ) async {
@@ -917,7 +912,7 @@ class SyncService {
   }
 
   Future<void> _cleanupRemoteAttachmentGarbage(
-    webdav.Client client,
+    SyncRemoteStore client,
     String remoteRoot,
     Map<String, _ManifestEntry> entries,
     Map<String, DateTime> existingRemoteFiles,
@@ -941,7 +936,7 @@ class SyncService {
   }
 
   Future<void> _writeTombstone(
-    webdav.Client client,
+    SyncRemoteStore client,
     String remoteRoot,
     _PendingHardDelete record,
     _RemoteManifest manifest,
@@ -960,9 +955,9 @@ class SyncService {
     if (!config.isConfigured) {
       return false;
     }
-    final client = _buildClient(config);
+    final client = SyncRemoteStore(config);
     await client.ping();
-    final remoteRoot = _normalizeDir(config.remoteDir);
+    final remoteRoot = _normalizeDir(config.activeRemoteDir);
     await _ensureRemoteLayout(client, remoteRoot);
     return true;
   }
@@ -976,7 +971,7 @@ class SyncService {
     if (!config.isConfigured) {
       return null;
     }
-    final client = _buildClient(config);
+    final client = SyncRemoteStore(config);
     await client.ping();
 
     final bytes = Uint8List.fromList(await client.read(remotePath));
@@ -1014,14 +1009,14 @@ class SyncService {
         success: false,
         message: _l10n(
           locale,
-          zh: '请先完成 WebDAV 配置',
-          en: 'Please configure WebDAV first',
+          zh: '请先完成同步配置',
+          en: 'Please configure sync storage first',
         ),
       );
     }
 
-    final client = _buildClient(config);
-    final remoteRoot = _normalizeDir(config.remoteDir);
+    final client = SyncRemoteStore(config);
+    final remoteRoot = _normalizeDir(config.activeRemoteDir);
     int uploaded = 0;
     int downloaded = 0;
     int conflicts = 0;
@@ -1164,6 +1159,7 @@ class SyncService {
       // Recovery: entries with sync state but missing from manifest.
       for (final id in localHeads.keys) {
         if (manifest.entries.containsKey(id)) continue;
+        if (manifest.tombstones.containsKey(id)) continue;
         if (uploadRevisions.containsKey(id)) continue;
         final state = syncStates[id] ?? _SyncState.empty;
         if (!state.isInitialized) continue;
@@ -1175,9 +1171,9 @@ class SyncService {
         final id = entry.key;
         final revision = entry.value;
         uploadTasks.add(() async {
-          DiaryEntry? local = localMap[id] ?? await _diaryRepository.getById(id);
+          final local = localMap[id] ?? await _diaryRepository.getById(id);
           if (local == null) return;
-          final localFingerprint = _contentFingerprint(local);
+          var localFingerprint = _contentFingerprint(local);
           final envelope = await _uploadEntry(
             client,
             remoteRoot,
@@ -1186,6 +1182,12 @@ class SyncService {
             existingRemoteFiles: existingRemoteFiles,
           );
           final refs = _collectAttachmentRefs(envelope.entry);
+          if (await _diaryRepository.updateSyncedAttachments(
+            local,
+            envelope.entry.attachments,
+          )) {
+            localFingerprint = _contentFingerprint(envelope.entry);
+          }
           manifest.entries[id] = _ManifestEntry(
             id: id,
             path: _entryPath(remoteRoot, id),

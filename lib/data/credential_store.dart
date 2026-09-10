@@ -46,21 +46,24 @@ class CredentialStore {
     return utf8.decode(plain);
   }
 
-  static Future<void> savePassword(String password) async {
+  static Future<void> savePassword(
+    String password, {
+    String key = _credKey,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     if (password.isEmpty) {
-      await prefs.remove(_credKey);
+      await prefs.remove(key);
       return;
     }
     final salt = await _salt();
     final derived = _deriveKey(salt);
     final obfuscated = _obfuscate(password, derived);
-    await prefs.setString(_credKey, obfuscated);
+    await prefs.setString(key, obfuscated);
   }
 
-  static Future<String> loadPassword() async {
+  static Future<String> loadPassword({String key = _credKey}) async {
     final prefs = await SharedPreferences.getInstance();
-    final encoded = prefs.getString(_credKey);
+    final encoded = prefs.getString(key);
     if (encoded == null || encoded.isEmpty) {
       return '';
     }
@@ -73,8 +76,8 @@ class CredentialStore {
     }
   }
 
-  static Future<void> clear() async {
+  static Future<void> clear({String key = _credKey}) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_credKey);
+    await prefs.remove(key);
   }
 }

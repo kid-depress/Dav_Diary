@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
+
 import 'package:diary/data/credential_store.dart';
 import 'package:diary/data/database/app_database.dart';
 import 'package:diary/data/models/webdav_config.dart';
@@ -94,14 +96,41 @@ class SettingsRepository {
       return WebDavConfig(password: password);
     }
     final map = jsonDecode(raw) as Map<String, dynamic>;
-    return WebDavConfig.fromJson(map, password: password);
+    return WebDavConfig.fromJson(
+      map,
+      password: password,
+      s3SecretKey: await CredentialStore.loadPassword(key: 's3_secret_key'),
+    );
   }
 
   Future<void> saveWebDavConfig(WebDavConfig config) async {
     final prefs = await _prefs;
+    final previous = await loadWebDavConfig();
+    if (previous.targetIdentity != config.targetIdentity) {
+      // Keep deletion intent with its destination; force a fresh reconciliation.
+      String targetKey(WebDavConfig value) =>
+          'sync_deletes_${sha256.convert(utf8.encode(value.targetIdentity))}';
+      await prefs.setString(
+        targetKey(previous),
+        jsonEncode(await loadPendingHardDeleteRecords()),
+      );
+      final pending = prefs.getString(targetKey(config));
+      await savePendingHardDeleteRecords(
+        pending == null
+            ? []
+            : (jsonDecode(pending) as List).cast<Map<String, dynamic>>(),
+      );
+      await saveEntrySyncStates({});
+      await prefs.remove(_keyLastSyncAt);
+      await prefs.remove(_keyRemoteAttachmentCleanupAt);
+    }
     final safeJson = jsonEncode(config.toJson());
     await prefs.setString(_keyWebDavConfig, safeJson);
     await CredentialStore.savePassword(config.password);
+    await CredentialStore.savePassword(
+      config.s3.secretKey,
+      key: 's3_secret_key',
+    );
   }
 
   Future<DateTime?> loadLastSyncAt() async {

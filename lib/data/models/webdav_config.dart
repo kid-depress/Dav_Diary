@@ -1,7 +1,13 @@
+import 's3_config.dart';
+
+enum SyncBackend { webdav, s3 }
+
 enum ConflictStrategy { lastWriteWins, keepBoth }
 
 class WebDavConfig {
   const WebDavConfig({
+    this.backend = SyncBackend.webdav,
+    this.s3 = const S3Config(),
     this.serverUrl = '',
     this.username = '',
     this.password = '',
@@ -9,18 +15,30 @@ class WebDavConfig {
     this.conflictStrategy = ConflictStrategy.lastWriteWins,
   });
 
+  final SyncBackend backend;
+  final S3Config s3;
   final String serverUrl;
   final String username;
   final String password;
   final String remoteDir;
   final ConflictStrategy conflictStrategy;
 
-  bool get isConfigured =>
-      serverUrl.trim().isNotEmpty &&
-      username.trim().isNotEmpty &&
-      password.trim().isNotEmpty;
+  String get activeRemoteDir =>
+      backend == SyncBackend.s3 ? s3.prefix : remoteDir;
+
+  String get targetIdentity => backend == SyncBackend.s3
+      ? s3.targetIdentity
+      : "webdav|${serverUrl.trim().replaceAll(RegExp(r'/+$'), '')}|${username.trim()}|${remoteDir.replaceAll(RegExp(r'^/+|/+$'), '')}";
+
+  bool get isConfigured => backend == SyncBackend.s3
+      ? s3.isConfigured
+      : serverUrl.trim().isNotEmpty &&
+            username.trim().isNotEmpty &&
+            password.trim().isNotEmpty;
 
   WebDavConfig copyWith({
+    SyncBackend? backend,
+    S3Config? s3,
     String? serverUrl,
     String? username,
     String? password,
@@ -28,6 +46,8 @@ class WebDavConfig {
     ConflictStrategy? conflictStrategy,
   }) {
     return WebDavConfig(
+      backend: backend ?? this.backend,
+      s3: s3 ?? this.s3,
       serverUrl: serverUrl ?? this.serverUrl,
       username: username ?? this.username,
       password: password ?? this.password,
@@ -38,6 +58,8 @@ class WebDavConfig {
 
   Map<String, dynamic> toJson() {
     return {
+      'backend': backend.name,
+      's3': s3.toJson(),
       'serverUrl': serverUrl,
       'username': username,
       'remoteDir': remoteDir,
@@ -48,11 +70,17 @@ class WebDavConfig {
   static WebDavConfig fromJson(
     Map<String, dynamic> json, {
     String password = '',
+    String s3SecretKey = '',
   }) {
     final strategyValue =
         (json['conflictStrategy'] ?? ConflictStrategy.lastWriteWins.name)
             as String;
     return WebDavConfig(
+      backend: json['backend'] == 's3' ? SyncBackend.s3 : SyncBackend.webdav,
+      s3: S3Config.fromJson(
+        (json['s3'] as Map<String, dynamic>?) ?? {},
+        secretKey: s3SecretKey,
+      ),
       serverUrl: (json['serverUrl'] ?? '') as String,
       username: (json['username'] ?? '') as String,
       password: password.isNotEmpty

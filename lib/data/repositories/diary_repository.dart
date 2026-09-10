@@ -9,6 +9,26 @@ class DiaryRepository {
 
   Future<Database> get _db => _database.database;
 
+  /// Attach cloud metadata only if the entry has not changed during upload.
+  Future<bool> updateSyncedAttachments(
+    DiaryEntry source,
+    List<DiaryAttachment> attachments,
+  ) async {
+    final db = await _db;
+    final updated = source.copyWith(attachments: attachments).toDbMap();
+    return await db.update(
+          'entries',
+          {'attachments_json': updated['attachments_json']},
+          where: 'id = ? AND updated_at = ? AND attachments_json = ?',
+          whereArgs: [
+            source.id,
+            source.updatedAt.millisecondsSinceEpoch,
+            source.toDbMap()['attachments_json'],
+          ],
+        ) ==
+        1;
+  }
+
   Future<List<DiaryEntry>> listActive() async {
     final db = await _db;
     final rows = await db.query(

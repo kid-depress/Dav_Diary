@@ -1,6 +1,7 @@
 import 'package:diary/app/app_state.dart';
 import 'package:diary/app/i18n.dart';
 import 'package:diary/data/models/webdav_config.dart';
+import 'package:diary/data/models/s3_config.dart';
 import 'package:diary/ui/motion/motion_dialog.dart';
 import 'package:diary/ui/motion/motion_route.dart';
 import 'package:diary/ui/motion/motion_spec.dart';
@@ -329,7 +330,7 @@ class _WebDavTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return _SettingsActionTile(
       icon: Icons.cloud_outlined,
-      title: tr(context, zh: 'WebDAV 同步', en: 'WebDAV Sync'),
+      title: tr(context, zh: '云同步', en: 'Cloud Sync'),
       subtitle: tr(
         context,
         zh: '配置私有云同步参数。',
@@ -566,6 +567,15 @@ class _WebDavSettingsPageState extends State<WebDavSettingsPage> {
   final _passwordController = TextEditingController();
   final _remoteDirController = TextEditingController();
 
+  final _s3Endpoint = TextEditingController();
+  final _s3Bucket = TextEditingController();
+  final _s3Region = TextEditingController();
+  final _s3AccessKey = TextEditingController();
+  final _s3SecretKey = TextEditingController();
+  final _s3Prefix = TextEditingController();
+  SyncBackend _backend = SyncBackend.webdav;
+  bool _pathStyle = true;
+  bool _busy = false;
   bool _loaded = false;
   bool _obscurePassword = true;
   ConflictStrategy _conflictStrategy = ConflictStrategy.lastWriteWins;
@@ -578,6 +588,14 @@ class _WebDavSettingsPageState extends State<WebDavSettingsPage> {
     }
     final appState = context.read<DiaryAppState>();
     final config = appState.webDavConfig;
+    _backend = config.backend;
+    _s3Endpoint.text = config.s3.endpoint;
+    _s3Bucket.text = config.s3.bucket;
+    _s3Region.text = config.s3.region;
+    _s3AccessKey.text = config.s3.accessKey;
+    _s3SecretKey.text = config.s3.secretKey;
+    _s3Prefix.text = config.s3.prefix;
+    _pathStyle = config.s3.pathStyle;
     _urlController.text = config.serverUrl;
     _userController.text = config.username;
     _passwordController.text = config.password;
@@ -588,11 +606,118 @@ class _WebDavSettingsPageState extends State<WebDavSettingsPage> {
 
   @override
   void dispose() {
+    for (final controller in [
+      _s3Endpoint,
+      _s3Bucket,
+      _s3Region,
+      _s3AccessKey,
+      _s3SecretKey,
+      _s3Prefix,
+    ]) {
+      controller.dispose();
+    }
     _urlController.dispose();
     _userController.dispose();
     _passwordController.dispose();
     _remoteDirController.dispose();
     super.dispose();
+  }
+
+  Future<void> _runBusy(Future<void> Function() action) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await action();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  List<Widget> _buildS3Fields(BuildContext context) {
+    String? requiredValue(String? value) =>
+        value == null || value.trim().isEmpty
+        ? tr(context, zh: '必填项', en: 'Required')
+        : null;
+    Widget field(
+      TextEditingController controller,
+      String label, {
+      String? hint,
+      bool secret = false,
+      String? Function(String?)? validator,
+    }) => Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextFormField(
+        controller: controller,
+        obscureText: secret && _obscurePassword,
+        autocorrect: false,
+        enableSuggestions: !secret,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          suffixIcon: secret
+              ? IconButton(
+                  icon: Icon(
+                    _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                  ),
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
+                )
+              : null,
+        ),
+        validator: validator ?? requiredValue,
+      ),
+    );
+    return [
+      field(
+        _s3Endpoint,
+        'Endpoint',
+        hint: 'https://s3.us-east-1.amazonaws.com',
+        validator: (value) => S3Config.validEndpoint(value ?? '')
+            ? null
+            : tr(
+                context,
+                zh: '请输入 http(s) 地址，不含 Bucket 或路径',
+                en: 'Enter an http(s) endpoint without a bucket or path',
+              ),
+      ),
+      field(
+        _s3Bucket,
+        'Bucket',
+        validator: (value) => S3Config.validBucket((value ?? '').trim())
+            ? null
+            : tr(context, zh: '请输入有效的存储桶名称', en: 'Enter a valid bucket name'),
+      ),
+      field(_s3Region, 'Region', hint: 'us-east-1 / auto'),
+      field(_s3AccessKey, 'Access Key ID'),
+      field(_s3SecretKey, 'Secret Access Key', secret: true),
+      field(
+        _s3Prefix,
+        tr(context, zh: '对象前缀（可留空）', en: 'Object prefix (optional)'),
+        hint: 'diary',
+        validator: (_) => null,
+      ),
+      SwitchListTile.adaptive(
+        contentPadding: EdgeInsets.zero,
+        title: Text(tr(context, zh: '路径式访问', en: 'Path-style access')),
+        subtitle: Text(
+          tr(
+            context,
+            zh: '关闭后使用 Bucket 子域名访问',
+            en: 'When off, use the bucket as a subdomain',
+          ),
+        ),
+        value: _pathStyle,
+        onChanged: (value) => setState(() => _pathStyle = value),
+      ),
+      Text(
+        tr(
+          context,
+          zh: '请先创建存储桶，并授予此前缀的列出、读取、写入和删除权限。切换存储时会先下载旧存储中尚未缓存的原附件。',
+          en: 'Create the bucket first and allow list, read, write and delete for this prefix. Switching storage downloads uncached originals from the previous storage first.',
+        ),
+      ),
+      const SizedBox(height: 10),
+    ];
   }
 
   Future<bool> _saveConfig() async {
@@ -601,6 +726,16 @@ class _WebDavSettingsPageState extends State<WebDavSettingsPage> {
     }
     final appState = context.read<DiaryAppState>();
     final config = WebDavConfig(
+      backend: _backend,
+      s3: S3Config(
+        endpoint: _s3Endpoint.text.trim(),
+        bucket: _s3Bucket.text.trim(),
+        region: _s3Region.text.trim(),
+        accessKey: _s3AccessKey.text.trim(),
+        secretKey: _s3SecretKey.text,
+        prefix: _s3Prefix.text.trim(),
+        pathStyle: _pathStyle,
+      ),
       serverUrl: _urlController.text.trim(),
       username: _userController.text.trim(),
       password: _passwordController.text.trim(),
@@ -609,7 +744,18 @@ class _WebDavSettingsPageState extends State<WebDavSettingsPage> {
           : _remoteDirController.text.trim(),
       conflictStrategy: _conflictStrategy,
     );
-    await appState.updateWebDavConfig(config);
+    try {
+      await appState.updateWebDavConfig(config);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${tr(context, zh: '保存失败：', en: 'Save failed: ')}$e'),
+          ),
+        );
+      }
+      return false;
+    }
     if (!mounted) {
       return false;
     }
@@ -676,7 +822,7 @@ class _WebDavSettingsPageState extends State<WebDavSettingsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(tr(context, zh: 'WebDAV', en: 'WebDAV')),
+        title: Text(tr(context, zh: '云同步', en: 'Cloud Sync')),
       ),
       body: Consumer<DiaryAppState>(
         builder: (context, appState, _) {
@@ -713,8 +859,8 @@ class _WebDavSettingsPageState extends State<WebDavSettingsPage> {
               Text(
                 tr(
                   context,
-                  zh: '连接你的私有 WebDAV 空间用于备份与多端同步。',
-                  en: 'Connect private WebDAV storage for backup and sync.',
+                  zh: '选择 WebDAV 或 S3 对象存储，用于备份与多端同步。',
+                  en: 'Choose WebDAV or S3 object storage for backup and sync.',
                 ),
                 textAlign: TextAlign.center,
                 style: Theme.of(
@@ -729,72 +875,104 @@ class _WebDavSettingsPageState extends State<WebDavSettingsPage> {
                     key: _formKey,
                     child: Column(
                       children: [
-                        TextFormField(
-                          controller: _urlController,
+                        DropdownButtonFormField<SyncBackend>(
+                          initialValue: _backend,
                           decoration: InputDecoration(
                             labelText: tr(
                               context,
-                              zh: '服务器地址',
-                              en: 'Server URL',
+                              zh: '同步方式',
+                              en: 'Storage provider',
                             ),
-                            hintText: 'https://dav.example.com',
-                            prefixIcon: const Icon(Icons.dns_outlined),
                           ),
-                          validator: (value) =>
-                              (value == null || value.trim().isEmpty)
-                              ? tr(context, zh: '必填项', en: 'Required')
-                              : null,
+                          items: const [
+                            DropdownMenuItem(
+                              value: SyncBackend.webdav,
+                              child: Text('WebDAV'),
+                            ),
+                            DropdownMenuItem(
+                              value: SyncBackend.s3,
+                              child: Text('S3'),
+                            ),
+                          ],
+                          onChanged: appState.syncing || _busy
+                              ? null
+                              : (value) {
+                                  if (value != null) {
+                                    setState(() => _backend = value);
+                                  }
+                                },
                         ),
                         const SizedBox(height: 10),
-                        TextFormField(
-                          controller: _userController,
-                          decoration: InputDecoration(
-                            labelText: tr(context, zh: '用户名', en: 'Username'),
-                            prefixIcon: const Icon(Icons.person_outline),
+                        if (_backend == SyncBackend.s3)
+                          ..._buildS3Fields(context),
+                        if (_backend == SyncBackend.webdav) ...[
+                          TextFormField(
+                            controller: _urlController,
+                            decoration: InputDecoration(
+                              labelText: tr(
+                                context,
+                                zh: '服务器地址',
+                                en: 'Server URL',
+                              ),
+                              hintText: 'https://dav.example.com',
+                              prefixIcon: const Icon(Icons.dns_outlined),
+                            ),
+                            validator: (value) =>
+                                (value == null || value.trim().isEmpty)
+                                ? tr(context, zh: '必填项', en: 'Required')
+                                : null,
                           ),
-                          validator: (value) =>
-                              (value == null || value.trim().isEmpty)
-                              ? tr(context, zh: '必填项', en: 'Required')
-                              : null,
-                        ),
-                        const SizedBox(height: 10),
-                        TextFormField(
-                          controller: _passwordController,
-                          obscureText: _obscurePassword,
-                          decoration: InputDecoration(
-                            labelText: tr(context, zh: '密码', en: 'Password'),
-                            prefixIcon: const Icon(Icons.lock_outline),
-                            suffixIcon: IconButton(
-                              onPressed: () {
-                                setState(
-                                  () => _obscurePassword = !_obscurePassword,
-                                );
-                              },
-                              icon: Icon(
-                                _obscurePassword
-                                    ? Icons.visibility
-                                    : Icons.visibility_off,
+                          const SizedBox(height: 10),
+                          TextFormField(
+                            controller: _userController,
+                            decoration: InputDecoration(
+                              labelText: tr(context, zh: '用户名', en: 'Username'),
+                              prefixIcon: const Icon(Icons.person_outline),
+                            ),
+                            validator: (value) =>
+                                (value == null || value.trim().isEmpty)
+                                ? tr(context, zh: '必填项', en: 'Required')
+                                : null,
+                          ),
+                          const SizedBox(height: 10),
+                          TextFormField(
+                            controller: _passwordController,
+                            obscureText: _obscurePassword,
+                            decoration: InputDecoration(
+                              labelText: tr(context, zh: '密码', en: 'Password'),
+                              prefixIcon: const Icon(Icons.lock_outline),
+                              suffixIcon: IconButton(
+                                onPressed: () {
+                                  setState(
+                                    () => _obscurePassword = !_obscurePassword,
+                                  );
+                                },
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility
+                                      : Icons.visibility_off,
+                                ),
                               ),
                             ),
+                            validator: (value) =>
+                                (value == null || value.trim().isEmpty)
+                                ? tr(context, zh: '必填项', en: 'Required')
+                                : null,
                           ),
-                          validator: (value) =>
-                              (value == null || value.trim().isEmpty)
-                              ? tr(context, zh: '必填项', en: 'Required')
-                              : null,
-                        ),
-                        const SizedBox(height: 10),
-                        TextFormField(
-                          controller: _remoteDirController,
-                          decoration: InputDecoration(
-                            labelText: tr(
-                              context,
-                              zh: '远程目录',
-                              en: 'Remote Dir',
+                          const SizedBox(height: 10),
+                          TextFormField(
+                            controller: _remoteDirController,
+                            decoration: InputDecoration(
+                              labelText: tr(
+                                context,
+                                zh: '远程目录',
+                                en: 'Remote Dir',
+                              ),
+                              prefixIcon: const Icon(Icons.folder_outlined),
                             ),
-                            prefixIcon: const Icon(Icons.folder_outlined),
                           ),
-                        ),
-                        const SizedBox(height: 10),
+                          const SizedBox(height: 10),
+                        ],
                         DropdownButtonFormField<ConflictStrategy>(
                           initialValue: _conflictStrategy,
                           decoration: InputDecoration(
@@ -886,9 +1064,9 @@ class _WebDavSettingsPageState extends State<WebDavSettingsPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 FilledButton.icon(
-                  onPressed: appState.syncing
+                  onPressed: appState.syncing || _busy
                       ? null
-                      : () => _saveAndTest(appState),
+                      : () => _runBusy(() => _saveAndTest(appState)),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size(double.infinity, 52),
                   ),
@@ -899,7 +1077,9 @@ class _WebDavSettingsPageState extends State<WebDavSettingsPage> {
                 ),
                 const SizedBox(height: 8),
                 FilledButton.tonalIcon(
-                  onPressed: appState.syncing ? null : () => _syncNow(appState),
+                  onPressed: appState.syncing || _busy
+                      ? null
+                      : () => _runBusy(() => _syncNow(appState)),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size(double.infinity, 48),
                   ),

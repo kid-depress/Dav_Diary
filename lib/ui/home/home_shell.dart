@@ -9,6 +9,7 @@ import 'package:diary/ui/home/home_page.dart';
 import 'package:diary/ui/motion/motion_dialog.dart';
 import 'package:diary/ui/motion/motion_route.dart';
 import 'package:diary/ui/motion/motion_spec.dart';
+import 'package:diary/ui/motion/motion_tab_switcher.dart';
 import 'package:diary/ui/motion/pressable_scale.dart';
 import 'package:diary/ui/preview/entry_preview_page.dart';
 import 'package:diary/ui/settings/settings_page.dart';
@@ -93,6 +94,7 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   void _selectTab(int value) {
+    if (_index == value) return;
     setState(() {
       _index = value;
       if (_index != 0) {
@@ -267,14 +269,11 @@ class _HomeShellState extends State<HomeShell> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _IndexedTabFadeThrough(
-                        index: _index,
-                        children: pages,
-                      ),
+                      child: MotionTabSwitcher(index: _index, children: pages),
                     ),
                   ],
                 )
-              : _IndexedTabFadeThrough(index: _index, children: pages),
+              : MotionTabSwitcher(index: _index, children: pages),
           floatingActionButton: _index == 0
               ? Column(
                   mainAxisSize: MainAxisSize.min,
@@ -384,180 +383,6 @@ class _HomeShellState extends State<HomeShell> {
                 ),
         );
       },
-    );
-  }
-}
-
-/// A state-preserving fade-through for tab switches. The wrapped subtree
-/// (an [IndexedStack]) keeps all pages alive; on each index change we replay a
-/// short M3 fade-through (delayed fade-in + subtle upscale) on the now-visible
-/// page. Only opacity + transform animate, so it stays cheap.
-class _TabFadeThrough extends StatefulWidget {
-  const _TabFadeThrough({required this.index, required this.child});
-
-  final int index;
-  final Widget child;
-
-  @override
-  State<_TabFadeThrough> createState() => _TabFadeThroughState();
-}
-
-class _TabFadeThroughState extends State<_TabFadeThrough>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    duration: MotionSpec.tabSwitchDuration,
-    vsync: this,
-    value: 1,
-  );
-
-  // Reveal the incoming page in the back portion of the timeline — the
-  // hallmark of an M3 fade-through.
-  late final Animation<double> _fade = CurvedAnimation(
-    parent: _controller,
-    curve: const Interval(0.35, 1, curve: Curves.easeOut),
-  );
-
-  late final Animation<double> _scale = Tween<double>(begin: 0.97, end: 1)
-      .animate(
-        CurvedAnimation(
-          parent: _controller,
-          curve: MotionSpec.emphasizedDecelerate,
-        ),
-      );
-
-  @override
-  void didUpdateWidget(covariant _TabFadeThrough oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.index != widget.index) {
-      _controller
-        ..value = 0
-        ..forward();
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final reduceMotion = MotionSpec.reduceMotion(context);
-    return FadeTransition(
-      opacity: _fade,
-      child: reduceMotion
-          ? RepaintBoundary(child: widget.child)
-          : ScaleTransition(
-              scale: _scale,
-              child: RepaintBoundary(child: widget.child),
-            ),
-    );
-  }
-}
-
-/// A state-preserving M3 fade-through for tab switches.
-///
-/// All pages stay mounted in one [IndexedStack]. The old page fades away before
-/// the visible index changes, then the new page fades in with a subtle scale.
-/// This avoids a hard content swap while retaining scroll positions and form
-/// state for every tab.
-class _IndexedTabFadeThrough extends StatefulWidget {
-  const _IndexedTabFadeThrough({required this.index, required this.children});
-
-  final int index;
-  final List<Widget> children;
-
-  @override
-  State<_IndexedTabFadeThrough> createState() => _IndexedTabFadeThroughState();
-}
-
-class _IndexedTabFadeThroughState extends State<_IndexedTabFadeThrough>
-    with SingleTickerProviderStateMixin {
-  static const _swapPoint = 0.35;
-
-  late final AnimationController _controller = AnimationController(
-    duration: MotionSpec.tabSwitchDuration,
-    vsync: this,
-    value: 1,
-  )..addListener(_updateVisibleIndex);
-  late int _visibleIndex;
-  int? _nextIndex;
-  bool _swapped = true;
-
-  late final Animation<double> _fade = TweenSequence<double>([
-    TweenSequenceItem(
-      tween: Tween<double>(
-        begin: 1,
-        end: 0,
-      ).chain(CurveTween(curve: MotionSpec.emphasizedAccelerate)),
-      weight: _swapPoint,
-    ),
-    TweenSequenceItem(
-      tween: Tween<double>(
-        begin: 0,
-        end: 1,
-      ).chain(CurveTween(curve: MotionSpec.emphasizedDecelerate)),
-      weight: 1 - _swapPoint,
-    ),
-  ]).animate(_controller);
-
-  late final Animation<double> _scale = Tween<double>(begin: 0.98, end: 1)
-      .animate(
-        CurvedAnimation(
-          parent: _controller,
-          curve: const Interval(
-            _swapPoint,
-            1,
-            curve: MotionSpec.emphasizedDecelerate,
-          ),
-        ),
-      );
-
-  @override
-  void initState() {
-    super.initState();
-    _visibleIndex = widget.index;
-  }
-
-  @override
-  void didUpdateWidget(covariant _IndexedTabFadeThrough oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.index != widget.index) {
-      _nextIndex = widget.index;
-      _swapped = false;
-      _controller.forward(from: 0);
-    }
-  }
-
-  void _updateVisibleIndex() {
-    if (_swapped || _controller.value < _swapPoint) {
-      return;
-    }
-    setState(() {
-      _visibleIndex = _nextIndex ?? widget.index;
-      _swapped = true;
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller
-      ..removeListener(_updateVisibleIndex)
-      ..dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final content = RepaintBoundary(
-      child: IndexedStack(index: _visibleIndex, children: widget.children),
-    );
-    return FadeTransition(
-      opacity: _fade,
-      child: MotionSpec.reduceMotion(context)
-          ? content
-          : ScaleTransition(scale: _scale, child: content),
     );
   }
 }
