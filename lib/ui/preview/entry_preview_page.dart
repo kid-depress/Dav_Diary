@@ -31,6 +31,8 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
   final _previewFocusNode = FocusNode();
   final StorageService _storageService = const StorageService();
   final Map<String, Future<String?>> _resolvedPathCache = {};
+  final Map<String, String?> _resolvedPaths = {};
+  int _pathCacheGeneration = 0;
   bool _deleting = false;
 
   @override
@@ -75,6 +77,9 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
     final nextController = _buildPreviewController(nextEntry);
     setState(() {
       _entry = nextEntry;
+      _resolvedPathCache.clear();
+      _resolvedPaths.clear();
+      _pathCacheGeneration++;
       _previewController.dispose();
       _previewController = nextController;
     });
@@ -182,6 +187,8 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
     }
 
     _resolvedPathCache.clear();
+    _resolvedPaths.clear();
+    _pathCacheGeneration++;
     final reloaded = appState.entries.firstWhere(
       (item) => item.id == _entry.id,
       orElse: () => _entry,
@@ -202,10 +209,14 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
     if (rawPath.trim().isEmpty) {
       return Future.value(null);
     }
-    return _resolvedPathCache.putIfAbsent(
-      rawPath,
-      () => _storageService.resolveAttachmentPath(rawPath),
-    );
+    final generation = _pathCacheGeneration;
+    return _resolvedPathCache.putIfAbsent(rawPath, () async {
+      final path = await _storageService.resolveAttachmentPath(rawPath);
+      if (generation == _pathCacheGeneration) {
+        _resolvedPaths[rawPath] = path;
+      }
+      return path;
+    });
   }
 
   Widget _buildBrokenAttachment({required double size}) {
@@ -233,12 +244,17 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
             height: size,
             child: FutureBuilder<String?>(
               future: _resolveAttachmentPath(previewPath),
+              // Hero remounts this subtree at landing. A completed Future alone
+              // still has a waiting frame; seed it with the already resolved path.
+              initialData: _resolvedPaths[previewPath],
               builder: (context, snapshot) {
-                final resolvedPath = snapshot.data;
+                final resolvedPath =
+                    snapshot.data ?? _resolvedPaths[previewPath];
                 return Stack(
                   fit: StackFit.expand,
                   children: [
-                    if (snapshot.connectionState == ConnectionState.waiting)
+                    if (snapshot.connectionState == ConnectionState.waiting &&
+                        resolvedPath == null)
                       Container(
                         color: Theme.of(
                           context,
@@ -292,8 +308,10 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
         height: size,
         child: FutureBuilder<String?>(
           future: _resolveAttachmentPath(previewPath),
+          initialData: _resolvedPaths[previewPath],
           builder: (context, snapshot) {
-            final exists = snapshot.data != null;
+            final exists =
+                (snapshot.data ?? _resolvedPaths[previewPath]) != null;
             return Container(
               width: size,
               height: size,
@@ -322,6 +340,12 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
         ? tr(context, zh: '未设置', en: 'Not set')
         : _entry.location;
     final colors = Theme.of(context).colorScheme;
+
+    final heroAttachmentIndex = _entry.attachments.indexWhere(
+      (attachment) =>
+          attachment.isVisualImage &&
+          (attachment.path.isNotEmpty || attachment.thumbnailPath.isNotEmpty),
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -363,7 +387,7 @@ class _EntryPreviewPageState extends State<EntryPreviewPage> {
                               _entry.attachments[index],
                               size: attachmentSize,
                             );
-                            if (index == 0) {
+                            if (index == heroAttachmentIndex) {
                               return Hero(
                                 tag: 'entry_hero_${_entry.id}',
                                 child: attachment,
