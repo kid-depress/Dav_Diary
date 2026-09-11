@@ -2,7 +2,6 @@ import 'package:diary/app/app_state.dart';
 import 'package:diary/app/i18n.dart';
 import 'package:diary/data/models/diary_entry.dart';
 import 'package:diary/ui/motion/motion_dialog.dart';
-import 'package:diary/ui/motion/staggered_entrance.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -239,10 +238,8 @@ class _TrashPageState extends State<TrashPage> {
                         itemCount: _items.length,
                         itemBuilder: (context, index) {
                           final entry = _items[index];
-                          return StaggeredEntrance(
+                          return RepaintBoundary(
                             key: ValueKey('trash_${entry.id}'),
-                            index: index,
-                            skipAnimation: index >= 20,
                             child: _TrashEntryCard(
                               entry: entry,
                               onRestore: () => _restore(entry),

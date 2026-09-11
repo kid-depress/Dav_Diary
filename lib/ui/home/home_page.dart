@@ -5,7 +5,6 @@ import 'package:diary/app/i18n.dart';
 import 'package:diary/data/models/diary_entry.dart';
 import 'package:diary/ui/motion/motion_spec.dart';
 import 'package:diary/ui/motion/pressable_scale.dart';
-import 'package:diary/ui/motion/staggered_entrance.dart';
 import 'package:diary/ui/widgets/entry_meta_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -164,15 +163,11 @@ class _HomePageState extends State<HomePage> {
                 childCount: entries.length,
                 itemBuilder: (context, index) {
                   final entry = entries[index];
-                  return StaggeredEntrance(
+                  return RepaintBoundary(
                     key: ValueKey('stagger_${entry.id}'),
-                    index: index,
-                    skipAnimation: index >= 20,
-                    child: RepaintBoundary(
-                      child: _GridEntryCard(
-                        entry: entry,
-                        onTap: () => widget.onOpen(entry),
-                      ),
+                    child: _GridEntryCard(
+                      entry: entry,
+                      onTap: () => widget.onOpen(entry),
                     ),
                   );
                 },
