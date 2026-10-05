@@ -183,6 +183,9 @@ class _EditorPageState extends State<EditorPage> {
         return;
       }
       final saved = await const StorageService().saveImageAttachment(file.path);
+      if (!mounted) {
+        return;
+      }
       setState(() {
         _attachments = [
           ..._attachments,
@@ -266,20 +269,25 @@ class _EditorPageState extends State<EditorPage> {
           children: [
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
-              title: Text(tr(context, zh: '从相册添加', en: 'Add from gallery')),
+              title: Text(
+                Platform.isWindows
+                    ? tr(context, zh: '选择图片文件', en: 'Choose image file')
+                    : tr(context, zh: '从相册添加', en: 'Add from gallery'),
+              ),
               onTap: () async {
                 Navigator.of(context).pop();
                 await _pickImage(ImageSource.gallery);
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: Text(tr(context, zh: '拍照添加', en: 'Take a photo')),
-              onTap: () async {
-                Navigator.of(context).pop();
-                await _pickImage(ImageSource.camera);
-              },
-            ),
+            if (ImagePicker().supportsImageSource(ImageSource.camera))
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: Text(tr(context, zh: '拍照添加', en: 'Take a photo')),
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  await _pickImage(ImageSource.camera);
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.draw_outlined),
               title: Text(tr(context, zh: '新建涂鸦', en: 'New doodle')),
@@ -351,10 +359,9 @@ class _EditorPageState extends State<EditorPage> {
           accuracy: LocationAccuracy.low,
         ),
       );
-      final placemarks = await placemarkFromCoordinates(
-        pos.latitude,
-        pos.longitude,
-      );
+      final placemarks = Platform.isWindows
+          ? <Placemark>[]
+          : await placemarkFromCoordinates(pos.latitude, pos.longitude);
       final place = placemarks.isEmpty ? null : placemarks.first;
       final formatted = place == null
           ? '${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)}'
@@ -369,10 +376,10 @@ class _EditorPageState extends State<EditorPage> {
                 .map((part) => part.trim())
                 .where((part) => part.isNotEmpty)
                 .join(' ');
-      _locationController.text = formatted;
       if (!mounted) {
         return;
       }
+      _locationController.text = formatted;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(tr(context, zh: '位置已更新', en: 'Location updated')),
@@ -930,7 +937,7 @@ class _EditorPageState extends State<EditorPage> {
     final editorBottomPadding = 36.0 + (keyboardInset > 0 ? 6.0 : 8.0) + 8.0;
     final colors = Theme.of(context).colorScheme;
 
-    return Scaffold(
+    final page = Scaffold(
       appBar: AppBar(
         title: Text(tr(context, zh: '编辑日记', en: 'Edit Entry')),
         actions: [
@@ -1017,6 +1024,14 @@ class _EditorPageState extends State<EditorPage> {
           ],
         ),
       ),
+    );
+    return CallbackShortcuts(
+      bindings: {
+        if (Platform.isWindows)
+          const SingleActivator(LogicalKeyboardKey.keyS, control: true): () =>
+              unawaited(_save()),
+      },
+      child: page,
     );
   }
 }

@@ -49,6 +49,42 @@ WebDAV 和 S3 的配置分别保留，每次使用一个同步目标。切换目
 
 使用 MinIO Dart 客户端接入 S3 兼容 API，复用日记增量同步、冲突策略、缩略图和删除记录。自动化测试使用本地模拟 S3 服务；具体云服务和设备上的兼容性仍需使用实际账户验证。
 
+## 🪟 Windows 桌面版
+
+项目支持 Android 和 Windows。Windows 版沿用宽屏侧栏布局，支持富文本日记、图片附件、涂鸦、日历、回收站及 WebDAV / S3 同步。
+
+### 运行和构建
+
+使用 Flutter 3.38.9 / Dart 3.10.8 或兼容的更新版本。在 Windows 上安装 **Visual Studio 2022 或 2026** 的 **Desktop development with C++（使用 C++ 的桌面开发）** 工作负载，包含 MSVC、CMake 和 Windows SDK。`gal` 的 Windows 插件需要支持 C++20 的工具链；项目已移除其旧版 `/await` 选项以兼容新版 MSVC。
+
+```powershell
+flutter doctor -v
+flutter pub get
+flutter run -d windows
+flutter build windows --release
+```
+
+发布时打包整个 `build\windows\x64\runner\Release\` 目录，包括 `diary.exe`、DLL 和 `data` 文件夹。SQLite 原生库由 `sqlite3` 的构建钩子自动随应用打包，不能只分发 EXE。
+
+### 平台行为
+
+- 数据库、附件和缩略图保存在 `path_provider` 返回的应用支持目录（Windows 的用户应用数据目录），不占用公共“文档”目录；Android 的存储位置保持兼容。
+- “选择图片文件”打开系统文件选择器；未配置桌面相机时隐藏拍照入口。涂鸦仍可使用鼠标绘制。
+- 编辑日记时可按 `Ctrl+S` 保存。
+- 附件预览中的“另存为”可导出图片、视频和其他文件；取消对话框不会修改附件。
+- Windows 定位需要开启系统定位服务并授权；位置以经纬度保存，也可手动填写。Windows 不调用仅支持移动平台的地址解析插件。
+- 视频预览使用 [video_player_win](https://pub.dev/packages/video_player_win)，可播放的格式取决于 Windows 已安装的媒体编解码器。
+- 默认窗口为 1280 × 720，最小尺寸为 640 × 480，并按显示缩放比例调整；宽度不足时切换为底部导航。
+
+### 验证
+
+```powershell
+flutter analyze
+flutter test
+```
+
+Windows 上的数据库测试使用真实 SQLite，覆盖创建、持久化、回收站、版本升级和并发初始化；附件导出测试覆盖字节完整性、取消和保存到原路径。其他系统会跳过 Windows 数据库测试。已使用 Flutter 3.38.9、Visual Studio Community 2026 18.10.3 和 Windows SDK 10.0.28000.0 成功构建 Windows x64 发布版。安装包和原生功能仍需在目标设备上实际运行验证。
+
 ## ✨ 核心特性
 
 ### 🖋️ 沉浸式创作中心 (Powered by Quill)
@@ -93,7 +129,7 @@ WebDAV 和 S3 的配置分别保留，每次使用一个同步目标。切换目
 | **UI 框架**    | Flutter (Dart)                                     |
 | **状态管理**   | Provider                                           |
 | **编辑器核心** | `flutter_quill` 深度定制                           |
-| **本地存储**   | SQLite (sqflite) + SharedPreferences               |
+| **本地存储**   | SQLite（移动端 sqflite / Windows sqflite_common_ffi）+ SharedPreferences |
 | **网络层**     | Dio & webdav_client                                |
 | **图表**       | fl_chart                                           |
 | **日历**       | table_calendar                                     |
@@ -109,7 +145,8 @@ WebDAV 和 S3 的配置分别保留，每次使用一个同步目标。切换目
 ## 📅 开发计划 (Roadmap)
 
 - [ ] **端到端加密 (E2EE)：** 在上传至 WebDAV 前进行本地加密，确保云端数据绝对安全。
-- [ ] **多端同步优化：** 桌面端 (Windows/macOS) 适配。
+- [x] **Windows 适配：** 桌面工程、数据库、附件导出及宽屏布局。
+- [ ] **macOS 适配：** 桌面端平台支持。
 - [ ] **AI 助手：** 基于本地模型的周报总结与心情分析。
 
 ## 🤝 参与贡献

@@ -80,6 +80,9 @@ class _AttachmentPreviewPageState extends State<AttachmentPreviewPage> {
       await controller.play();
     } catch (_) {
       await controller.dispose();
+      if (!mounted) {
+        return;
+      }
       setState(
         () =>
             _videoError = tr(context, zh: '视频加载失败', en: 'Failed to load video'),
@@ -87,7 +90,7 @@ class _AttachmentPreviewPageState extends State<AttachmentPreviewPage> {
     }
   }
 
-  Future<void> _saveToAlbum() async {
+  Future<void> _saveAttachment() async {
     if (_saving) {
       return;
     }
@@ -97,10 +100,14 @@ class _AttachmentPreviewPageState extends State<AttachmentPreviewPage> {
     final msgUnsupported = zh
         ? '该类型附件不支持保存到相册'
         : 'This file type cannot be saved to album';
-    final msgSaved = zh ? '已保存到相册' : 'Saved to album';
-    final msgFailed = zh
-        ? '保存失败，请检查媒体权限'
-        : 'Save failed. Check media permissions.';
+    final msgSaved = Platform.isWindows
+        ? (zh ? '文件已保存' : 'File saved')
+        : (zh ? '已保存到相册' : 'Saved to album');
+    final msgFailed = Platform.isWindows
+        ? (zh
+              ? '保存失败，请检查文件访问权限'
+              : 'Save failed. Check file access permissions.')
+        : (zh ? '保存失败，请检查媒体权限' : 'Save failed. Check media permissions.');
 
     final resolvedPath = _resolvedPath;
     if (resolvedPath == null) {
@@ -110,7 +117,15 @@ class _AttachmentPreviewPageState extends State<AttachmentPreviewPage> {
 
     setState(() => _saving = true);
     try {
-      if (_isImage) {
+      if (Platform.isWindows) {
+        final target = await _storageService.exportAttachment(
+          resolvedPath,
+          dialogTitle: zh ? '另存为' : 'Save as',
+        );
+        if (target == null) {
+          return;
+        }
+      } else if (_isImage) {
         await Gal.putImage(resolvedPath, album: 'Kidary');
       } else if (_isVideo) {
         await Gal.putVideo(resolvedPath, album: 'Kidary');
@@ -143,14 +158,16 @@ class _AttachmentPreviewPageState extends State<AttachmentPreviewPage> {
         title: Text(tr(context, zh: '附件预览', en: 'Attachment Preview')),
         actions: [
           IconButton(
-            onPressed: _saving ? null : _saveToAlbum,
+            onPressed: _saving ? null : _saveAttachment,
             icon: _saving
                 ? const SizedBox.square(
                     dimension: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.download_outlined),
-            tooltip: tr(context, zh: '保存到相册', en: 'Save to album'),
+            tooltip: Platform.isWindows
+                ? tr(context, zh: '另存为', en: 'Save as')
+                : tr(context, zh: '保存到相册', en: 'Save to album'),
           ),
         ],
       ),
@@ -215,9 +232,13 @@ class _AttachmentPreviewPageState extends State<AttachmentPreviewPage> {
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          AspectRatio(
-            aspectRatio: _videoController!.value.aspectRatio,
-            child: VideoPlayer(_videoController!),
+          Expanded(
+            child: Center(
+              child: AspectRatio(
+                aspectRatio: _videoController!.value.aspectRatio,
+                child: VideoPlayer(_videoController!),
+              ),
+            ),
           ),
           const SizedBox(height: 12),
           IconButton.filledTonal(

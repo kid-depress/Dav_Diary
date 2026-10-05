@@ -1,11 +1,12 @@
 import 'dart:io';
 
 import 'package:diary/data/models/diary_entry.dart';
+import 'package:diary/services/app_paths.dart';
 import 'package:crypto/crypto.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
 class StoredAttachmentData {
@@ -64,6 +65,28 @@ Future<Map<String, Uint8List>> _processImageInIsolate(
 class StorageService {
   const StorageService();
 
+  /// Use the desktop save dialog without reading large attachments into memory.
+  /// A cancelled dialog leaves the original file untouched.
+  Future<String?> exportAttachment(
+    String sourcePath, {
+    String? dialogTitle,
+  }) async {
+    final target = await FilePicker.platform.saveFile(
+      dialogTitle: dialogTitle,
+      fileName: p.basename(sourcePath),
+    );
+    if (target == null) {
+      return null;
+    }
+    final isSameFile =
+        await File(target).exists() &&
+        await FileSystemEntity.identical(sourcePath, target);
+    if (!isSameFile) {
+      await File(sourcePath).copy(target);
+    }
+    return target;
+  }
+
   Future<bool> _hasUsableThumbnail(DiaryAttachment attachment) async {
     final thumbPath = attachment.thumbnailPath.trim();
     if (thumbPath.isEmpty) {
@@ -73,7 +96,7 @@ class StorageService {
   }
 
   Future<Directory> _mediaDir() async {
-    final dir = await getApplicationDocumentsDirectory();
+    final dir = await getDiaryDataDirectory();
     final media = Directory(p.join(dir.path, 'media'));
     if (!await media.exists()) {
       await media.create(recursive: true);
